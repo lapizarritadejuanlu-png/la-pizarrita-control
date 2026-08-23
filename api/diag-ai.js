@@ -5,7 +5,7 @@ module.exports = async function handler(req,res){
     const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{
       method:'POST',
       headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-      body:JSON.stringify({model:'openai/gpt-5.6-sol',input:'Responde exactamente OK',max_output_tokens:20})
+      body:JSON.stringify({model:'openai/gpt-5.5',input:'Responde exactamente OK',max_output_tokens:20})
     });
     const raw=await r.text();
     let data={};try{data=JSON.parse(raw)}catch{}
