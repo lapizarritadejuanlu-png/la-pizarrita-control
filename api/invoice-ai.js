@@ -42,60 +42,74 @@ Reglas estrictas:
 6) total es el TOTAL FINAL A PAGAR de la factura.
 7) Usa punto decimal en números. No inventes datos. Si un dato no se puede determinar con seguridad, devuelve null.`;
 
-    const content=[{type:'input_text',text:prompt}];
-
-    if(type==='application/pdf'||dataUrl.startsWith('data:application/pdf')){
-      content.push({
-        type:'input_file',
-        filename:name,
-        file_data:dataUrl
-      });
-    }else{
-      content.push({
-        type:'input_image',
-        image_url:dataUrl,
-        detail:'high'
-      });
-    }
-
-    const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{
-      method:'POST',
-      headers:{
-        Authorization:`Bearer ${key}`,
-        'Content-Type':'application/json'
-      },
-      body:JSON.stringify({
-        model:'alibaba/qwen3.5-flash',
-        input:[{
-          type:'message',
-          role:'user',
-          content
-        }],
-        max_output_tokens:1200
-      })
-    });
-
-    const raw=await r.text();
-    let data;
-    try{data=JSON.parse(raw)}catch{data={}}
-
-    if(!r.ok){
-      console.error('AI Gateway error',r.status,data?.error?.type||data?.type||'unknown');
-      return res.status(502).json({
-        code:'AI_SERVICE_ERROR',
-        error:'No se pudo leer la factura ahora mismo. Inténtalo de nuevo.'
-      });
-    }
-
+    const isPdf=type==='application/pdf'||dataUrl.startsWith('data:application/pdf');
     let text='';
 
-    if(typeof data.output_text==='string') text=data.output_text;
+    if(isPdf){
+      const {generateText}=await import('ai');
+      const comma=dataUrl.indexOf(',');
+      if(comma<0) return res.status(400).json({error:'PDF no válido'});
+      const pdf=Buffer.from(dataUrl.slice(comma+1),'base64');
+      if(!pdf.length) return res.status(400).json({error:'PDF vacío'});
 
-    if(!text&&Array.isArray(data.output)){
-      for(const item of data.output){
-        if(item.type==='message'&&Array.isArray(item.content)){
-          for(const c of item.content){
-            if(typeof c.text==='string') text+=c.text;
+      try{
+        const result=await generateText({
+          model:'google/gemini-2.5-flash-lite',
+          messages:[{
+            role:'user',
+            content:[
+              {type:'text',text:prompt},
+              {type:'file',mediaType:'application/pdf',data:pdf,filename:name||'factura.pdf'}
+            ]
+          }],
+          maxOutputTokens:1200
+        });
+        text=result.text||'';
+      }catch(e){
+        console.error('PDF AI error',e?.name||'unknown',e?.message||'unknown');
+        return res.status(502).json({
+          code:'AI_SERVICE_ERROR',
+          error:'No se pudo leer el PDF ahora mismo. Inténtalo de nuevo.'
+        });
+      }
+    }else{
+      const content=[
+        {type:'input_text',text:prompt},
+        {type:'input_image',image_url:dataUrl,detail:'high'}
+      ];
+
+      const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{
+        method:'POST',
+        headers:{
+          Authorization:`Bearer ${key}`,
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify({
+          model:'alibaba/qwen3.5-flash',
+          input:[{type:'message',role:'user',content}],
+          max_output_tokens:1200
+        })
+      });
+
+      const raw=await r.text();
+      let data;
+      try{data=JSON.parse(raw)}catch{data={}}
+
+      if(!r.ok){
+        console.error('AI Gateway error',r.status,data?.error?.type||data?.type||'unknown');
+        return res.status(502).json({
+          code:'AI_SERVICE_ERROR',
+          error:'No se pudo leer la factura ahora mismo. Inténtalo de nuevo.'
+        });
+      }
+
+      if(typeof data.output_text==='string') text=data.output_text;
+      if(!text&&Array.isArray(data.output)){
+        for(const item of data.output){
+          if(item.type==='message'&&Array.isArray(item.content)){
+            for(const c of item.content){
+              if(typeof c.text==='string') text+=c.text;
+            }
           }
         }
       }
