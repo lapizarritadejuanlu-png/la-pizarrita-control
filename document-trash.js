@@ -7,6 +7,7 @@ function addTrashStyles(){
   `;document.head.appendChild(s);
 }
 function trashType(x){const t=x?.document_type||'invoice';return t==='ticket'?'Ticket':t==='delivery_note'?'Albarán':'Factura'}
+function trashNorm(s=''){return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim()}
 function filterDeletedFromLoadedData(){
   const all=Array.isArray(invoices)?[...invoices]:[];deletedDocuments=all.filter(x=>!!x.deleted_at);window.deletedDocuments=deletedDocuments;
   const deletedIds=new Set(deletedDocuments.map(x=>x.id));invoices=all.filter(x=>!x.deleted_at);
@@ -48,6 +49,11 @@ const previousLoadDataTrash=loadData;
 loadData=async function(){const result=await previousLoadDataTrash.apply(this,arguments);filterDeletedFromLoadedData();if(session)renderApp();return result};
 const previousDeleteTrash=deleteInvoice;
 deleteInvoice=async function(id){return moveDocumentToTrash(id)};
+const previousSaveTrash=saveInvoice;
+saveInvoice=async function(){
+  if(!editingInvoiceId){const t=v('invDocType')||'invoice',supplier=trashNorm(v('invSupplier')),number=trashNorm(v('invNumber'));if(number&&supplier){const dup=deletedDocuments.find(x=>(x.document_type||'invoice')===t&&trashNorm(x.supplier)===supplier&&trashNorm(x.invoice_number)===number);if(dup){toast(`Ese ${trashType(dup).toLowerCase()} está en Papelera. Restáuralo en vez de guardarlo otra vez.`);return}}}
+  return previousSaveTrash.apply(this,arguments);
+};
 const previousMoreTrash=moreView;
 moreView=function(){return previousMoreTrash()+trashView()};
 const previousBindTrash=bind;
