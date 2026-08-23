@@ -34,12 +34,13 @@ saveInvoice=async function(){
     const invoiceId=typeof result==='string'?result:(Array.isArray(result)?result[0]:result?.id||editingInvoiceId);
     if(!invoiceId)throw new Error('No se pudo confirmar el documento guardado');
     if(newPath&&editingFilePath&&editingFilePath!==newPath)await deleteStorageFile(editingFilePath).catch(()=>{});
-    let linkedCount=0;
-    try{if(typeof window.afterDocumentSaved==='function'){const r=await window.afterDocumentSaved({invoiceId,docType,date,supplier,total,wasEdit});linkedCount=Number(r?.linkedCount)||0}}catch(e){console.error('Document saved hook',e?.message||'unknown')}
+    let linkedCount=0,linkError=false;
+    try{if(typeof window.afterDocumentSaved==='function'){const r=await window.afterDocumentSaved({invoiceId,docType,date,supplier,total,wasEdit});linkedCount=Number(r?.linkedCount)||0;linkError=!!r?.linkError}}catch(e){linkError=true;console.error('Document saved hook',e?.message||'unknown')}
     const productCount=replaceItems&&savePrices?detectedItems.filter(x=>x.unit_price!==null&&Number.isFinite(Number(x.unit_price))&&Number(x.unit_price)>0).length:0;
     editingInvoiceId=null;editingFilePath=null;detectedItems=[];itemsLoaded=false;saveItems=true;lastDetectedDocumentMeta=null;window.lastDetectedDocumentMeta=null;selectedMonth=date.slice(0,7);
     const label=docLabel(docType);
-    if(linkedCount)toast(`${label} guardado · ${linkedCount} documento${linkedCount===1?'':'s'} vinculado${linkedCount===1?'':'s'}`);
+    if(linkError)toast(`${label} guardado · revisa la vinculación de documentos`);
+    else if(linkedCount)toast(`${label} guardado · ${linkedCount} documento${linkedCount===1?'':'s'} vinculado${linkedCount===1?'':'s'}`);
     else if(replaceItems&&savePrices)toast(`${wasEdit?label+' actualizado':label+' guardado'} · ${productCount} precios a Productos`);
     else if(docType==='delivery_note')toast(wasEdit?'Albarán actualizado · pendiente de factura':'Albarán guardado · pendiente de factura');
     else toast(wasEdit?`${label} actualizado en la nube`:`${label} guardado en la nube`);
