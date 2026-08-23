@@ -31,11 +31,11 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('index.html','utf8');
-          const refs=[...html.matchAll(/src=\\"\/([^?\\"]+\.js)(?:\?[^\\"]*)?\\"/g)].map(m=>m[1]);
+          const refs=[...html.matchAll(/\/([A-Za-z0-9._-]+\.js)(?=[?\\"'])/g)].map(m=>m[1]);
           if(!refs.length) throw new Error('No JavaScript references found in index.html');
           const missing=refs.filter(f=>!fs.existsSync(f));
           const duplicates=refs.filter((f,i)=>refs.indexOf(f)!==i);
           if(missing.length) throw new Error(`Missing scripts: ${[...new Set(missing)].join(', ')}`);
           if(duplicates.length) throw new Error(`Duplicate scripts: ${[...new Set(duplicates)].join(', ')}`);
-          console.log(`Validated ${refs.length} referenced scripts`);
+          console.log(`Validated ${refs.length} referenced scripts: ${refs.join(', ')}`);
           NODE
