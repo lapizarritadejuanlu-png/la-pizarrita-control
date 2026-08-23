@@ -1,5 +1,5 @@
 (()=>{
-let productFilterText='',productTrendFilter='all';
+let productFilterText='',productTrendFilter='all',providerFilterText='';
 
 function addBusinessStyles(){
   if(document.getElementById('businessToolsStyle'))return;
@@ -11,8 +11,10 @@ function addBusinessStyles(){
   .price-list{display:flex;flex-direction:column;gap:10px}.price-card{display:flex;justify-content:space-between;gap:14px;padding:15px 16px;border:1px solid var(--line);border-radius:15px;background:#151613}
   .price-main{min-width:0;flex:1}.price-name{font-weight:900}.price-meta{font-size:.8rem;color:var(--muted);margin-top:4px;line-height:1.35}.price-prev{font-size:.78rem;color:#b6b1a8;margin-top:5px}
   .price-side{text-align:right;min-width:118px}.price-now{font-weight:900;white-space:nowrap}.price-trend{font-size:.77rem;font-weight:900;margin-top:5px}.trend-up{color:#ff9a91}.trend-down{color:#7bd79a}.trend-same{color:#b9b5ad}.trend-new{color:#d9b86e}
+  .provider-tools{padding:16px}.provider-tools-grid{display:grid;grid-template-columns:1.35fr .85fr;gap:10px}.provider-summary{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+  .provider-month{font-weight:900;color:var(--text);white-space:nowrap}.provider-all{font-size:.78rem;color:var(--muted);margin-top:5px}
   .backup-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.backup-note{color:var(--muted);font-size:.86rem;line-height:1.4;margin:0}
-  @media(max-width:540px){.product-tools-grid,.backup-actions{grid-template-columns:1fr}.price-card{align-items:flex-start}.price-side{min-width:105px}}
+  @media(max-width:540px){.product-tools-grid,.provider-tools-grid,.backup-actions{grid-template-columns:1fr}.price-card{align-items:flex-start}.price-side{min-width:105px}}
   `;
   document.head.appendChild(s);
 }
@@ -62,6 +64,34 @@ function applyProductFilters(){
   if(r)r.textContent=`${records} precio${records===1?'':'s'} guardado${records===1?'':'s'}`;
   if(e)e.style.display=count?'none':'block';
 }
+
+function providerMonthOptions(){
+  const set=new Set([selectedMonth,localDate().slice(0,7)]);
+  for(const x of invoices)if(x.invoice_date)set.add(x.invoice_date.slice(0,7));
+  const d=new Date();for(let i=0;i<18;i++){const x=new Date(d.getFullYear(),d.getMonth()-i,2);set.add(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}`)}
+  return [...set].sort().reverse().map(m=>`<option value="${esc(m)}" ${m===selectedMonth?'selected':''}>${esc(monthLabel(m))}</option>`).join('');
+}
+function businessProvidersView(){
+  const map=new Map();
+  for(const x of invoices){
+    const name=(x.supplier||'Sin proveedor').trim()||'Sin proveedor',key=normText(name);
+    if(!map.has(key))map.set(key,{name,total:0,monthTotal:0,count:0,monthCount:0,last:''});
+    const p=map.get(key),amount=Number(x.total)||0;p.total+=amount;p.count++;
+    if((x.invoice_date||'').slice(0,7)===selectedMonth){p.monthTotal+=amount;p.monthCount++}
+    if(!p.last||String(x.invoice_date||'')>p.last)p.last=x.invoice_date||'';
+  }
+  const rows=[...map.values()].sort((a,b)=>Math.abs(b.monthTotal)-Math.abs(a.monthTotal)||Math.abs(b.total)-Math.abs(a.total)||a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+  const cards=rows.map(p=>`<div class="row provider-smart-row" data-search="${esc(p.name.toLowerCase())}" data-month-total="${p.monthTotal}"><div><div class="row-title">${esc(p.name)}</div><div class="row-meta">${p.monthCount} factura${p.monthCount===1?'':'s'} en ${esc(monthLabel(selectedMonth))} · última ${fmtDate(p.last)}</div><div class="provider-all">Acumulado: ${euro(p.total)} · ${p.count} factura${p.count===1?'':'s'}</div></div><div class="provider-month">${euro(p.monthTotal)}</div></div>`).join('');
+  return `<h2>Proveedores</h2>${rows.length?`<div class="card provider-tools"><div class="provider-tools-grid"><input id="providerSearch" type="search" placeholder="Buscar proveedor" value="${esc(providerFilterText)}"><select id="providerMonth">${providerMonthOptions()}</select></div><div class="provider-summary"><span id="providerVisibleCount"></span><strong id="providerVisibleTotal"></strong></div></div><div class="list provider-list">${cards}</div><div id="providerNoResults" class="empty" style="display:none">No hay proveedores con ese filtro.</div>`:'<div class="empty">Sin proveedores.</div>'}`;
+}
+function applyProviderFilters(){
+  const rows=[...document.querySelectorAll('.provider-smart-row')];if(!rows.length)return;
+  const q=providerFilterText.trim().toLowerCase();let count=0,total=0;
+  for(const row of rows){const show=!q||(row.dataset.search||'').includes(q);row.style.display=show?'flex':'none';if(show){count++;total+=Number(row.dataset.monthTotal)||0}}
+  const c=document.getElementById('providerVisibleCount'),t=document.getElementById('providerVisibleTotal'),e=document.getElementById('providerNoResults');
+  if(c)c.textContent=`${count} proveedor${count===1?'':'es'}`;if(t)t.textContent=`Mes: ${euro(total)}`;if(e)e.style.display=count?'none':'block';
+}
+
 function csvCell(v){const s=String(v??'');return /[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s}
 function dec(v,d=2){const n=Number(v);return Number.isFinite(n)?n.toFixed(d).replace('.',','):''}
 function downloadCsv(filename,headers,rows){
@@ -79,6 +109,7 @@ function exportProductsCsv(){
 }
 
 productsView=businessProductsView;
+providersView=businessProvidersView;
 const previousMoreView=moreView;
 moreView=function(){return previousMoreView()+`<div class="section-title">Copia para gestor</div><div class="card"><p class="backup-note">Descarga una copia en CSV de tus facturas o del historial de precios. Se abre directamente con Excel y sirve como respaldo.</p><div class="backup-actions"><button id="exportInvoices" class="secondary">⬇️ Exportar facturas</button><button id="exportProducts" class="secondary">⬇️ Exportar precios</button></div></div>`};
 
@@ -99,9 +130,12 @@ bind=function(){
   previousBind();addBusinessStyles();
   document.getElementById('productSearch')?.addEventListener('input',e=>{productFilterText=e.target.value;applyProductFilters()});
   document.getElementById('productTrend')?.addEventListener('change',e=>{productTrendFilter=e.target.value;applyProductFilters()});
+  document.getElementById('providerSearch')?.addEventListener('input',e=>{providerFilterText=e.target.value;applyProviderFilters()});
+  document.getElementById('providerMonth')?.addEventListener('change',e=>{selectedMonth=e.target.value;renderApp();scrollTo(0,0)});
   document.getElementById('exportInvoices')?.addEventListener('click',exportInvoicesCsv);
   document.getElementById('exportProducts')?.addEventListener('click',exportProductsCsv);
   applyProductFilters();
+  applyProviderFilters();
 };
 
 addBusinessStyles();
