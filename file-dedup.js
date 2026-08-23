@@ -6,13 +6,11 @@ async function sha256File(file){
   return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 async function duplicateFile(hash,excludeId){
-  const rows=await api(`/rest/v1/invoices?file_sha256=eq.${encodeURIComponent(hash)}&select=id,supplier,invoice_number,invoice_date,total,document_type`);
+  const rows=await api(`/rest/v1/invoices?file_sha256=eq.${encodeURIComponent(hash)}&select=id,supplier,invoice_number,invoice_date,total,document_type,deleted_at`);
   return (Array.isArray(rows)?rows:[]).find(x=>x.id!==excludeId)||null;
 }
 function fileDocLabel(x){return (x?.document_type||'invoice')==='ticket'?'ticket':(x?.document_type||'invoice')==='delivery_note'?'albarán':'factura'}
 
-// Inject the fingerprint into the same INSERT/PATCH that saves the document.
-// This lets the database unique index reject an exact duplicate atomically.
 const previousApiFileDedup=api;
 api=async function(path,options={}){
   const method=String(options?.method||'GET').toUpperCase();
@@ -31,24 +29,18 @@ saveInvoice=async function(){
   try{
     hash=await sha256File(file);
     const dup=await duplicateFile(hash,editId);
-    if(dup){toast(`Este mismo archivo ya está guardado como ${fileDocLabel(dup)} · ${dup.supplier||''} · ${fmtDate(dup.invoice_date)}`);return}
-  }catch(e){
-    console.warn('Document fingerprint precheck',e?.message||'unknown');
-    hash=null;
-  }
-
-  activeDocumentFileHash=hash;
-  try{
-    return await previousSaveInvoiceFileDedup.apply(this,arguments);
-  }catch(e){
-    const msg=String(e?.message||'');
-    if(/invoices_user_file_sha256_unique|duplicate key|23505/i.test(msg)){
-      toast('Este mismo archivo ya está guardado. No se ha creado un duplicado.');
+    if(dup){
+      if(dup.deleted_at)toast(`Este mismo archivo está en Papelera como ${fileDocLabel(dup)} · ${dup.supplier||''}. Restáuralo en vez de subirlo otra vez.`);
+      else toast(`Este mismo archivo ya está guardado como ${fileDocLabel(dup)} · ${dup.supplier||''} · ${fmtDate(dup.invoice_date)}`);
       return;
     }
+  }catch(e){console.warn('Document fingerprint precheck',e?.message||'unknown');hash=null}
+
+  activeDocumentFileHash=hash;
+  try{return await previousSaveInvoiceFileDedup.apply(this,arguments)}catch(e){
+    const msg=String(e?.message||'');
+    if(/invoices_user_file_sha256_unique|duplicate key|23505/i.test(msg)){toast('Este mismo archivo ya está guardado. No se ha creado un duplicado.');return}
     throw e;
-  }finally{
-    activeDocumentFileHash=null;
-  }
+  }finally{activeDocumentFileHash=null}
 };
 })();
