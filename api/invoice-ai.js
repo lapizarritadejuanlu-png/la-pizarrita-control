@@ -31,7 +31,16 @@ module.exports = async function handler(req,res){
     if(dataUrl.length>5_500_000)
       return res.status(413).json({error:'El archivo es demasiado grande'});
 
-    const prompt=`Lee esta factura de proveedor para un negocio de hostelería en España. Extrae únicamente estos campos y devuelve SOLO JSON válido, sin markdown ni explicaciones: {"date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null}. Usa punto decimal en números. No inventes datos. Si hay varios tipos de IVA, vat_amount debe ser la suma total de IVA. El total debe ser el total final de la factura.`;
+    const prompt=`Lee esta factura de proveedor para un negocio en España y devuelve SOLO JSON válido, sin markdown ni explicaciones, con exactamente estos campos: {"date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null}.
+
+Reglas estrictas:
+1) date debe ser la FECHA DE EMISIÓN de la factura. No uses fecha de vencimiento, periodo de facturación, fecha de lectura ni fecha de consumo.
+2) invoice_number debe ser el NÚMERO DE FACTURA. No uses número de contrato, cliente, referencia bancaria, identificación o contador.
+3) base_amount es la BASE IMPONIBLE REAL sobre la que se calcula el IVA. Si hay varias bases con distintos tipos de IVA, suma las bases imponibles. NO calcules base_amount como total menos IVA. NO incluyas cánones, tasas, tributos, residuos u otros conceptos no sujetos/exentos de IVA salvo que la propia factura indique claramente que forman parte de una base imponible.
+4) Si la factura no muestra explícitamente la base pero muestra un único tipo de IVA y su cuota, puedes deducir la base como cuota_IVA / tipo_IVA únicamente si el cálculo es claro y coherente. Ejemplo: IVA 5,22 € al 10% implica base 52,20 € aproximadamente; usa el importe exacto de la línea gravada si aparece.
+5) vat_amount es la suma de todas las cuotas de IVA. No incluyas otros impuestos o tasas.
+6) total es el TOTAL FINAL A PAGAR de la factura.
+7) Usa punto decimal en números. No inventes datos. Si un dato no se puede determinar con seguridad, devuelve null.`;
 
     const content=[{type:'input_text',text:prompt}];
 
@@ -110,8 +119,17 @@ module.exports = async function handler(req,res){
       v===null||v===undefined||v===''?
       null:Number(String(v).replace(',','.'));
 
+    const normalizeDate=v=>{
+      if(!v) return null;
+      const s=String(v).trim();
+      if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      let m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      return null;
+    };
+
     const clean={
-      date:inv.date||null,
+      date:normalizeDate(inv.date),
       supplier:inv.supplier||null,
       invoice_number:inv.invoice_number||null,
       base_amount:n(inv.base_amount),
