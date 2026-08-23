@@ -81,6 +81,15 @@ window.afterDocumentSaved=async function({invoiceId,docType}){
   selectedDocumentLinks.clear();linkSelectionTouched=false;return{linkedCount};
 };
 
+const oldSaveInvoiceDocuments=saveInvoice;
+saveInvoice=async function(){
+  if(editingInvoiceId)return oldSaveInvoiceDocuments.apply(this,arguments);
+  const type=v('invDocType')||'invoice',supplier=docNorm(v('invSupplier')),number=docNumNorm(v('invNumber'));
+  if(supplier&&number){const dup=(Array.isArray(invoices)?invoices:[]).find(x=>documentType(x)===type&&docNorm(x.supplier)===supplier&&docNumNorm(x.invoice_number)===number);if(dup){toast(`Ese ${documentTypeLabel(type).toLowerCase()} ya está guardado · ${fmtDate(dup.invoice_date)} · ${euro(dup.total)}`);return}}
+  const allInvoices=invoices,filtered=(Array.isArray(allInvoices)?allInvoices:[]).filter(x=>documentType(x)===type);invoices=filtered;
+  try{const result=await oldSaveInvoiceDocuments.apply(this,arguments);if(invoices===filtered)invoices=allInvoices;return result}catch(e){if(invoices===filtered)invoices=allInvoices;throw e}
+};
+
 const oldDeleteInvoiceDocuments=deleteInvoice;
 deleteInvoice=async function(id){const linked=(Array.isArray(invoices)?invoices:[]).filter(x=>x.linked_to_invoice_id===id);await oldDeleteInvoiceDocuments(id);if(linked.length&&!invoices.some(x=>x.id===id)){for(const x of linked){await api(`/rest/v1/invoices?id=eq.${encodeURIComponent(x.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:{document_status:documentType(x)==='delivery_note'?'pending':'final',linked_to_invoice_id:null}}).catch(()=>{})}await loadData()}};
 
