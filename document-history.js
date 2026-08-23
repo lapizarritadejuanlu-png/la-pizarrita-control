@@ -6,11 +6,11 @@ function addDocumentHistoryStyles(){
   .document-history{margin:-2px 0 10px;padding:14px;border:1px solid #34362f;border-radius:14px;background:#11120f}.history-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px}.history-title{font-size:.9rem;font-weight:900}.history-count{font-size:.74rem;color:var(--muted)}.history-event{padding:10px 0;border-top:1px solid #2a2c27}.history-event:first-of-type{border-top:0}.history-event-head{display:flex;justify-content:space-between;gap:10px}.history-action{font-size:.82rem;font-weight:900}.history-time{font-size:.7rem;color:var(--muted);white-space:nowrap}.history-change{font-size:.73rem;color:#b9b5ad;line-height:1.4;margin-top:4px}.history-empty{font-size:.8rem;color:var(--muted)}
   `;document.head.appendChild(s);
 }
-function historyActionLabel(a){return a==='created'?'Documento creado':a==='updated'?'Documento corregido':a==='linked'?'Vinculado a factura':a==='unlinked'?'Desvinculado de factura':a==='deleted'?'Documento borrado':a==='baseline'?'Inicio del historial':'Cambio'}
-function historyFieldLabel(k){return k==='supplier'?'Proveedor':k==='number'?'Nº documento':k==='date'?'Fecha':k==='base'?'Base':k==='vat'?'IVA':k==='total'?'Total':k==='type'?'Tipo':k==='status'?'Estado':k==='linked_to'?'Factura vinculada':k}
+function historyActionLabel(a){return a==='created'?'Documento creado':a==='updated'?'Documento corregido':a==='linked'?'Vinculado a factura':a==='unlinked'?'Desvinculado de factura':a==='trashed'?'Enviado a Papelera':a==='restored'?'Restaurado desde Papelera':a==='deleted'?'Borrado definitivamente':a==='baseline'?'Inicio del historial':'Cambio'}
+function historyFieldLabel(k){return k==='supplier'?'Proveedor':k==='number'?'Nº documento':k==='date'?'Fecha':k==='base'?'Base':k==='vat'?'IVA':k==='total'?'Total':k==='type'?'Tipo':k==='status'?'Estado':k==='linked_to'?'Factura vinculada':k==='deleted_at'?'Papelera':k}
 function historyType(v){return v==='ticket'?'Ticket':v==='delivery_note'?'Albarán':v==='invoice'?'Factura':v}
 function historyStatus(v){return v==='linked'?'Sustituido':v==='pending'?'Pendiente':v==='final'?'Final':v}
-function historyValue(k,v){if(v===null||v===undefined||v==='')return'—';if(['base','vat','total'].includes(k))return euro(v);if(k==='date')return fmtDate(String(v));if(k==='type')return historyType(v);if(k==='status')return historyStatus(v);if(k==='linked_to')return v?'Sí':'No';return String(v)}
+function historyValue(k,v){if(v===null||v===undefined||v==='')return'—';if(['base','vat','total'].includes(k))return euro(v);if(k==='date')return fmtDate(String(v));if(k==='type')return historyType(v);if(k==='status')return historyStatus(v);if(k==='linked_to')return v?'Sí':'No';if(k==='deleted_at')return v?'En Papelera':'Activo';return String(v)}
 function historyChanges(x){
   const c=x?.changed_fields&&typeof x.changed_fields==='object'?x.changed_fields:{};
   const out=[];
@@ -22,6 +22,8 @@ function historyChanges(x){
   if(x.action==='baseline')return'El documento ya existía cuando se activó el historial.';
   if(x.action==='linked')return'El documento dejó de contabilizarse por quedar sustituido por una factura.';
   if(x.action==='unlinked')return'El documento volvió a su estado contable anterior.';
+  if(x.action==='trashed')return'El documento se conserva y puede restaurarse desde Papelera.';
+  if(x.action==='restored')return'El documento volvió a estar activo.';
   return'';
 }
 function historyTime(s){try{return new Intl.DateTimeFormat('es-ES',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(s))}catch{return''}}
