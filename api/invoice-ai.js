@@ -23,7 +23,7 @@ module.exports = async function handler(req,res){
   });
 
   try{
-    const {dataUrl,name='factura',type='image/jpeg'}=req.body||{};
+    const {dataUrl,name='documento',type='image/jpeg'}=req.body||{};
 
     if(!dataUrl||typeof dataUrl!=='string')
       return res.status(400).json({error:'Falta el archivo'});
@@ -31,26 +31,34 @@ module.exports = async function handler(req,res){
     if(dataUrl.length>5_500_000)
       return res.status(413).json({error:'El archivo es demasiado grande'});
 
-    const prompt=`Lee esta factura de proveedor para un negocio de hostelería en España y devuelve SOLO JSON válido, sin markdown ni explicaciones, con exactamente esta estructura:
-{"date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"items":[{"description":"texto","quantity":numero o null,"unit":"texto o null","unit_price":numero o null,"line_total":numero o null}]}.
+    const prompt=`Lee este documento de compra de un negocio de hostelería en España. ANTES de extraer importes, clasifícalo correctamente. Devuelve SOLO JSON válido, sin markdown ni explicaciones, con exactamente esta estructura:
+{"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"items":[{"description":"texto","quantity":numero o null,"unit":"texto o null","unit_price":numero o null,"line_total":numero o null}]}.
+
+CLASIFICACIÓN OBLIGATORIA:
+0) document_type debe ser exactamente uno de estos valores:
+- invoice: factura oficial, factura rectificativa, abono o documento claramente identificado como FACTURA y con formato fiscal de factura.
+- ticket: ticket de caja, recibo de comercio, justificante POS o FACTURA SIMPLIFICADA/ticket que no tenga el formato de una factura completa de proveedor. Aunque aparezca el texto "factura simplificada", clasifícalo como ticket.
+- delivery_note: albarán, nota de entrega, vale de entrega o documento de mercancía entregada que NO sea la factura oficial. Si aparece claramente ALBARÁN/ALBARAN/NOTA DE ENTREGA como documento principal y no FACTURA como documento principal, usa delivery_note.
+No asumas invoice por defecto. Si hay duda entre invoice y delivery_note, da prioridad a lo que el propio documento diga en su título o cabecera.
 
 Reglas estrictas para la cabecera:
-1) date debe ser la FECHA DE EMISIÓN de la factura. No uses fecha de vencimiento, periodo de facturación, fecha de lectura ni fecha de consumo.
-2) invoice_number debe ser el NÚMERO DE FACTURA. No uses número de contrato, cliente, referencia bancaria, identificación o contador.
-3) base_amount es la BASE IMPONIBLE REAL sobre la que se calcula el IVA. Si hay varias bases con distintos tipos de IVA, suma las bases imponibles. NO calcules base_amount como total menos IVA. NO incluyas cánones, tasas, tributos, residuos u otros conceptos no sujetos/exentos de IVA salvo que la propia factura indique claramente que forman parte de una base imponible.
-4) Si la factura no muestra explícitamente la base pero muestra un único tipo de IVA y su cuota, puedes deducir la base como cuota_IVA / tipo_IVA únicamente si el cálculo es claro y coherente. Usa el importe exacto de la línea gravada si aparece.
-5) vat_amount es la suma de todas las cuotas de IVA. No incluyas otros impuestos o tasas.
-6) total es el TOTAL FINAL A PAGAR de la factura.
+1) date debe ser la FECHA DE EMISIÓN del documento. No uses fecha de vencimiento, periodo de facturación, fecha de lectura ni fecha de consumo.
+2) invoice_number debe ser el número principal del documento: número de factura si es invoice, número de ticket si es ticket y número de albarán si es delivery_note. No uses número de contrato, cliente, referencia bancaria, identificación o contador.
+3) related_document_numbers contiene SOLO números de albaranes, tickets o documentos previos que una FACTURA mencione explícitamente como origen o referencia. No incluyas el propio invoice_number. Si no hay referencias claras, devuelve [].
+4) base_amount es la BASE IMPONIBLE REAL sobre la que se calcula el IVA. Si hay varias bases con distintos tipos de IVA, suma las bases imponibles. NO calcules base_amount como total menos IVA. NO incluyas cánones, tasas, tributos, residuos u otros conceptos no sujetos/exentos de IVA salvo que el propio documento indique claramente que forman parte de una base imponible.
+5) Si el documento no muestra explícitamente la base pero muestra un único tipo de IVA y su cuota, puedes deducir la base como cuota_IVA / tipo_IVA únicamente si el cálculo es claro y coherente. Usa el importe exacto de la línea gravada si aparece. En tickets o albaranes, si la base no está clara, devuelve null.
+6) vat_amount es la suma de todas las cuotas de IVA que aparezcan claramente. No incluyas otros impuestos o tasas. En tickets o albaranes sin desglose claro, devuelve null.
+7) total es el TOTAL FINAL del documento. En un albarán puede ser el total del albarán si aparece, aunque luego no se contabilizará como factura definitiva.
 
 Reglas estrictas para items:
-7) Incluye en items únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como si fueran productos.
-8) description debe conservar un nombre útil del producto tal como aparece en la factura, limpiando solo códigos internos que no aporten información.
-9) quantity es la cantidad facturada. Si aparece peso (kg), litros, cajas, bandejas, unidades, etc., usa el número que representa la cantidad facturada.
-10) unit debe ser una unidad corta y normalizada. Usa preferentemente exactamente una de estas formas: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Si la factura usa abreviaturas como C/CJ para caja, UD/U para unidad, GR para gramos o LT para litros, conviértelas a esas formas normalizadas. Si no se puede determinar, null.
-11) unit_price es el precio unitario ANTES de IVA cuando la factura lo indique claramente. No inventes ni dividas line_total entre quantity si existe cualquier duda sobre descuentos, formatos o unidades.
-12) line_total es el importe neto de esa línea antes de IVA cuando figure claramente. Mantén importes negativos en abonos/devoluciones.
-13) Si una línea está poco clara, es mejor devolver null en sus campos numéricos que inventar.
-14) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].`;
+8) Incluye en items únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como si fueran productos.
+9) description debe conservar un nombre útil del producto tal como aparece en el documento, limpiando solo códigos internos que no aporten información.
+10) quantity es la cantidad. Si aparece peso (kg), litros, cajas, bandejas, unidades, etc., usa el número que representa la cantidad.
+11) unit debe ser una unidad corta y normalizada. Usa preferentemente exactamente una de estas formas: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Si el documento usa abreviaturas como C/CJ para caja, UD/U para unidad, GR para gramos o LT para litros, conviértelas a esas formas normalizadas. Si no se puede determinar, null.
+12) unit_price es el precio unitario ANTES de IVA cuando lo indique claramente. No inventes ni dividas line_total entre quantity si existe cualquier duda sobre descuentos, formatos o unidades.
+13) line_total es el importe neto de esa línea antes de IVA cuando figure claramente. Mantén importes negativos en abonos/devoluciones.
+14) Si una línea está poco clara, es mejor devolver null en sus campos numéricos que inventar.
+15) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].`;
 
     const isPdf=type==='application/pdf'||dataUrl.startsWith('data:application/pdf');
     let text='';
@@ -69,10 +77,10 @@ Reglas estrictas para items:
             role:'user',
             content:[
               {type:'text',text:prompt},
-              {type:'file',mediaType:'application/pdf',data:pdf,filename:name||'factura.pdf'}
+              {type:'file',mediaType:'application/pdf',data:pdf,filename:name||'documento.pdf'}
             ]
           }],
-          maxOutputTokens:3500
+          maxOutputTokens:3800
         });
         text=result.text||'';
       }catch(e){
@@ -97,7 +105,7 @@ Reglas estrictas para items:
         body:JSON.stringify({
           model:'alibaba/qwen3.5-flash',
           input:[{type:'message',role:'user',content}],
-          max_output_tokens:3500
+          max_output_tokens:3800
         })
       });
 
@@ -109,7 +117,7 @@ Reglas estrictas para items:
         console.error('AI Gateway error',r.status,data?.error?.type||data?.type||'unknown');
         return res.status(502).json({
           code:'AI_SERVICE_ERROR',
-          error:'No se pudo leer la factura ahora mismo. Inténtalo de nuevo.'
+          error:'No se pudo leer el documento ahora mismo. Inténtalo de nuevo.'
         });
       }
 
@@ -129,7 +137,7 @@ Reglas estrictas para items:
 
     if(!match)
       return res.status(502).json({
-        error:'No se han podido identificar los datos de la factura.'
+        error:'No se han podido identificar los datos del documento.'
       });
 
     let inv;
@@ -138,7 +146,7 @@ Reglas estrictas para items:
       inv=JSON.parse(match[0]);
     }catch{
       return res.status(502).json({
-        error:'No se han podido identificar los datos de la factura.'
+        error:'No se han podido identificar los datos del documento.'
       });
     }
 
@@ -182,13 +190,18 @@ Reglas estrictas para items:
       line_total:n(x?.line_total)
     })).filter(x=>x.description):[];
 
+    const documentType=['invoice','ticket','delivery_note'].includes(inv.document_type)?inv.document_type:'invoice';
+    const relatedDocumentNumbers=Array.isArray(inv.related_document_numbers)?inv.related_document_numbers.map(x=>String(x||'').trim().slice(0,100)).filter(Boolean).slice(0,30):[];
+
     const clean={
+      document_type:documentType,
       date:normalizeDate(inv.date),
       supplier:inv.supplier||null,
       invoice_number:inv.invoice_number||null,
       base_amount:n(inv.base_amount),
       vat_amount:n(inv.vat_amount),
       total:n(inv.total),
+      related_document_numbers:relatedDocumentNumbers,
       items
     };
 
@@ -198,7 +211,7 @@ Reglas estrictas para items:
     console.error('Invoice AI internal error',e?.message||'unknown');
     return res.status(500).json({
       code:'AI_INTERNAL_ERROR',
-      error:'No se pudo procesar la factura. Inténtalo de nuevo.'
+      error:'No se pudo procesar el documento. Inténtalo de nuevo.'
     });
   }
 }
