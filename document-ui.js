@@ -35,8 +35,14 @@ function applyDocumentFilters(){
   if(totalEl)totalEl.textContent=`Contabilizado: ${euro(total)}`;
   if(emptyEl){emptyEl.textContent='No hay documentos con ese filtro.';emptyEl.style.display=count?'none':'block'}
 }
+function renameDashboardDocuments(){
+  if(route!=='dashboard')return;
+  document.querySelectorAll('#main .section-title').forEach(el=>{if(el.textContent.trim()==='Últimas facturas')el.textContent='Últimos documentos'});
+  document.querySelectorAll('#main .empty').forEach(el=>{if(el.textContent.trim()==='Todavía no hay facturas.')el.textContent='Todavía no hay documentos.'});
+}
 function injectDocumentUi(){
   const nav=document.querySelector('[data-route="invoices"]');if(nav)nav.textContent='Documentos';
+  renameDashboardDocuments();
   if(route!=='invoices')return;
   const title=document.querySelector('#main > h2');if(title)title.textContent='Documentos';
   const search=document.getElementById('invoiceSearch');if(search)search.placeholder='Buscar proveedor o nº documento';
