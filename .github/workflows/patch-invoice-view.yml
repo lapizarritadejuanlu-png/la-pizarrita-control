@@ -1,0 +1,72 @@
+name: Patch invoice file viewer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-invoice-view.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index.html
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+
+          old='''<div class="row"><div><div class="row-title">${esc(x.supplier)}</div><div class="row-meta">${fmtDate(x.invoice_date)} · ${esc(x.invoice_number||'Sin nº')}</div></div><div class="row-amount">${euro(x.total)}</div></div>'''
+          new='''<div class="row"><div><div class="row-title">${esc(x.supplier)}</div><div class="row-meta">${fmtDate(x.invoice_date)} · ${esc(x.invoice_number||'Sin nº')}</div>${x.file_path?`<button type="button" class="secondary invoice-file" data-file-path="${esc(x.file_path)}" style="padding:7px 10px;margin-top:8px;font-size:.78rem">📎 Ver archivo</button>`:''}</div><div class="row-amount">${euro(x.total)}</div></div>'''
+          count=s.count(old)
+          if count != 2:
+              raise SystemExit(f'Expected 2 invoice row matches, found {count}')
+          s=s.replace(old,new)
+
+          old_bind="  document.getElementById('aiRead')?.addEventListener('click',readInvoiceAI);"
+          new_bind="  document.getElementById('aiRead')?.addEventListener('click',readInvoiceAI);\n  document.querySelectorAll('.invoice-file').forEach(b=>b.addEventListener('click',()=>openInvoiceFile(b.dataset.filePath)));"
+          if s.count(old_bind) != 1:
+              raise SystemExit('Bind marker not found exactly once')
+          s=s.replace(old_bind,new_bind)
+
+          marker="async function uploadInvoiceFile(file){"
+          fn="""async function openInvoiceFile(path){
+  if(!path){toast('Esta factura no tiene archivo.');return}
+  const win=window.open('about:blank','_blank');
+  try{
+    setBusy(true);
+    const enc=path.split('/').map(encodeURIComponent).join('/');
+    const getFile=()=>fetch(`${SB_URL}/storage/v1/object/authenticated/invoice-files/${enc}`,{headers:{apikey:SB_KEY,Authorization:`Bearer ${session.access_token}`}});
+    let res=await getFile();
+    if(res.status===401&&await refreshSession())res=await getFile();
+    if(!res.ok)throw new Error('No se pudo abrir el archivo guardado.');
+    const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    if(win)win.location.href=url;else window.location.href=url;
+    setTimeout(()=>URL.revokeObjectURL(url),120000);
+  }catch(e){
+    if(win)win.close();
+    toast(e.message||'No se pudo abrir el archivo.');
+  }finally{setBusy(false)}
+}
+"""
+          if s.count(marker) != 1:
+              raise SystemExit('Upload marker not found exactly once')
+          s=s.replace(marker,fn+marker)
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Open saved invoice files from the app"
+          git push
