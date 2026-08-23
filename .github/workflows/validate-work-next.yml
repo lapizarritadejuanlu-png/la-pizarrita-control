@@ -25,3 +25,39 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done < <(find . -type f -name '*.js' -not -path './.git/*' -print0)
+      - name: Check scripts referenced by index
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('index.html','utf8');
+          const refs=[...html.matchAll(/\/([A-Za-z0-9._-]+\.js)(?=[?\\"'])/g)].map(m=>m[1]);
+          if(!refs.length) throw new Error('No JavaScript references found in index.html');
+          const missing=refs.filter(f=>!fs.existsSync(f));
+          const duplicates=refs.filter((f,i)=>refs.indexOf(f)!==i);
+          if(missing.length) throw new Error(`Missing scripts: ${[...new Set(missing)].join(', ')}`);
+          if(duplicates.length) throw new Error(`Duplicate scripts: ${[...new Set(duplicates)].join(', ')}`);
+          console.log(`Validated ${refs.length} referenced scripts: ${refs.join(', ')}`);
+          NODE
+      - name: Check Vercel config and version endpoint
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          JSON.parse(fs.readFileSync('vercel.json','utf8'));
+          process.env.VERCEL_GIT_COMMIT_SHA='0123456789abcdef';
+          process.env.VERCEL_GIT_COMMIT_REF='work-next';
+          process.env.VERCEL_ENV='preview';
+          process.env.VERCEL_URL='example.vercel.app';
+          const handler=require('./api/version.js');
+          let code=null,body=null;
+          const res={
+            setHeader(){},
+            status(n){code=n;return this},
+            json(x){body=x;return this}
+          };
+          handler({},res);
+          if(code!==200)throw new Error(`Version endpoint returned ${code}`);
+          if(body?.commit!=='0123456789abcdef'||body?.branch!=='work-next'||body?.environment!=='preview')throw new Error('Version endpoint payload mismatch');
+          console.log('Vercel config and version endpoint OK');
+          NODE

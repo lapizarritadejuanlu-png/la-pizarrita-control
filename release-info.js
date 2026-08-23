@@ -1,0 +1,12 @@
+(()=>{
+let releaseInfo=null,releaseInfoError='';
+function riStyles(){if(document.getElementById('releaseInfoStyle'))return;const s=document.createElement('style');s.id='releaseInfoStyle';s.textContent=`.release-card{border-color:#343d3a}.release-title{font-size:.95rem;font-weight:900}.release-help{font-size:.75rem;color:var(--muted);line-height:1.4;margin-top:5px}.release-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.78rem;color:var(--mint);margin-top:8px;word-break:break-all}.release-btn{width:100%;margin-top:10px}`;document.head.appendChild(s)}
+function riHtml(){
+  if(releaseInfoError)return `<div class="section-title">Versión publicada</div><div class="card release-card"><div class="release-title">⚠ No se pudo consultar Vercel</div><div class="release-help">${esc(releaseInfoError)}</div><button type="button" id="refreshReleaseInfo" class="secondary release-btn">Comprobar de nuevo</button></div>`;
+  if(!releaseInfo)return `<div class="section-title">Versión publicada</div><div class="card release-card"><div class="release-title">☁️ Consultando versión…</div><div class="release-help">La app comprobará qué commit está sirviendo Vercel.</div></div>`;
+  const commit=releaseInfo.commit||'sin SHA',short=commit==='sin SHA'?commit:commit.slice(0,10),env=releaseInfo.environment||'desconocido',branch=releaseInfo.branch||'sin rama';
+  return `<div class="section-title">Versión publicada</div><div class="card release-card"><div class="release-title">☁️ ${env==='production'?'Producción':'Despliegue'} · ${esc(short)}</div><div class="release-help">Rama: ${esc(branch)}${releaseInfo.deployment?` · ${esc(releaseInfo.deployment)}`:''}</div><div class="release-code">${esc(commit)}</div><button type="button" id="refreshReleaseInfo" class="secondary release-btn">Actualizar versión</button></div>`;
+}
+async function loadReleaseInfo(rerender=true){try{releaseInfoError='';const res=await fetch('/api/version',{cache:'no-store'});if(!res.ok)throw new Error(`Error ${res.status}`);releaseInfo=await res.json()}catch(e){releaseInfo=null;releaseInfoError=e?.message||'No disponible'}if(rerender&&session&&route==='more')renderApp()}
+riStyles();const prevMoreRI=moreView;moreView=function(){return prevMoreRI()+riHtml()};const prevBindRI=bind;bind=function(){prevBindRI();riStyles();document.getElementById('refreshReleaseInfo')?.addEventListener('click',()=>loadReleaseInfo(true))};loadReleaseInfo(false).then(()=>{if(session&&route==='more')renderApp()});
+})();
