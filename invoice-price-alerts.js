@@ -61,7 +61,7 @@ function priceChangeText(line,prev){
   const before=Number(prev.price),now=Number(line.price);if(!Number.isFinite(before)||before<=0)return{kind:'new',text:'Nueva referencia'};
   const pct=((now-before)/before)*100,abs=Math.abs(pct);
   const pctText=abs.toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
-  const prevText=euro(before),date=prev.price_date?fmtDate(prev.price_date):'',supplier=prev.supplier?` · ${esc(prev.supplier)}`:'';
+  const prevText=euro(before),date=prev.price_date?fmtDate(prev.price_date):'',supplier=prev.supplier?` · ${prev.supplier}`:'';
   if(abs<0.5)return{kind:'same',text:`= Sin cambio relevante · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
   if(pct>0)return{kind:'up',text:`▲ +${pctText}% · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
   return{kind:'down',text:`▼ -${pctText}% · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
@@ -93,8 +93,9 @@ const oldBindPriceAlerts=bind;
 bind=function(){
   oldBindPriceAlerts();addPriceAlertStyles();schedulePriceAlerts();
   document.getElementById('invSupplier')?.addEventListener('input',schedulePriceAlerts);
-  const preview=document.getElementById('aiItemsPreview');
-  if(preview){new MutationObserver(()=>schedulePriceAlerts()).observe(preview,{childList:true,subtree:true})}
+  document.getElementById('aiItemsPreview')?.addEventListener('click',e=>{
+    if(e.target.closest('[data-remove-item]')||e.target.closest('#toggleDetectedItems'))schedulePriceAlerts();
+  });
 };
 if(session)renderApp();
 })();
