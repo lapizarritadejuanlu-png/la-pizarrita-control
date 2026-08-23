@@ -10,18 +10,18 @@ function setupHead(){
 }
 function addPwaStyles(){
   if(document.getElementById('pwaStyle'))return;
-  const s=document.createElement('style');s.id='pwaStyle';s.textContent=`.install-card{border-color:#465e50}.install-title{font-weight:900;font-size:1.05rem;margin-bottom:6px}.install-text{color:var(--muted);font-size:.86rem;line-height:1.4;margin:0 0 12px}.install-btn{width:100%}`;document.head.appendChild(s);
+  const s=document.createElement('style');s.id='pwaStyle';s.textContent=`.install-card{border-color:#465e50}.install-title{font-weight:900;font-size:1.05rem;margin-bottom:6px}.install-text{color:var(--muted);font-size:.86rem;line-height:1.4;margin:0 0 12px}.install-btn{width:100%}.installed-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid #365b43;border-radius:999px;padding:8px 11px;color:#7bd79a;font-size:.82rem;font-weight:900}`;document.head.appendChild(s);
 }
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e});
-window.addEventListener('appinstalled',()=>{installPrompt=null;toast?.('La Pizarrita instalada')});
+window.addEventListener('appinstalled',()=>{installPrompt=null;toast?.('La Pizarrita instalada');if(session)renderApp()});
 setupHead();addPwaStyles();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 
 const oldMoreView=moreView;
 moreView=function(){
   const base=oldMoreView();
-  if(standalone())return base;
-  return base+`<div class="section-title">Aplicación</div><div class="card install-card"><div class="install-title">📱 Instalar La Pizarrita</div><p class="install-text">Añádela a la pantalla de inicio para abrirla como una aplicación independiente, sin tener que buscarla en el navegador.</p><button id="installPizarrita" class="primary install-btn">Instalar aplicación</button></div>`;
+  const installed=standalone();
+  return base+`<div class="section-title">Aplicación</div><div class="card install-card"><div class="install-title">📱 La Pizarrita en tu móvil</div>${installed?`<p class="install-text">La estás usando ya como aplicación independiente.</p><span class="installed-pill">✓ Ya instalada</span>`:`<p class="install-text">Añádela a la pantalla de inicio para abrirla como una aplicación independiente, sin tener que buscarla en el navegador.</p><button id="installPizarrita" class="primary install-btn">Instalar aplicación</button>`}</div>`;
 };
 const oldBind=bind;
 bind=function(){
