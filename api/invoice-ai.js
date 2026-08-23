@@ -46,7 +46,7 @@ Reglas estrictas para items:
 7) Incluye en items únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como si fueran productos.
 8) description debe conservar un nombre útil del producto tal como aparece en la factura, limpiando solo códigos internos que no aporten información.
 9) quantity es la cantidad facturada. Si aparece peso (kg), litros, cajas, bandejas, unidades, etc., usa el número que representa la cantidad facturada.
-10) unit debe ser una unidad corta y útil cuando pueda determinarse: kg, g, l, ml, unidad, caja, bandeja, paquete u otra que figure claramente. Si no se puede determinar, null.
+10) unit debe ser una unidad corta y normalizada. Usa preferentemente exactamente una de estas formas: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Si la factura usa abreviaturas como C/CJ para caja, UD/U para unidad, GR para gramos o LT para litros, conviértelas a esas formas normalizadas. Si no se puede determinar, null.
 11) unit_price es el precio unitario ANTES de IVA cuando la factura lo indique claramente. No inventes ni dividas line_total entre quantity si existe cualquier duda sobre descuentos, formatos o unidades.
 12) line_total es el importe neto de esa línea antes de IVA cuando figure claramente. Mantén importes negativos en abonos/devoluciones.
 13) Si una línea está poco clara, es mejor devolver null en sus campos numéricos que inventar.
@@ -157,10 +157,27 @@ Reglas estrictas para items:
       return null;
     };
 
+    const normalizeUnit=v=>{
+      if(v===null||v===undefined||v==='') return null;
+      const raw=String(v).trim().toLowerCase().replace(/\./g,'').replace(/\s+/g,'');
+      const map={
+        c:'caja',cj:'caja',caj:'caja',caja:'caja',cajas:'caja',
+        u:'unidad',ud:'unidad',uds:'unidad',un:'unidad',unidad:'unidad',unidades:'unidad',
+        kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',
+        g:'g',gr:'g',grs:'g',gramo:'g',gramos:'g',
+        l:'l',lt:'l',lts:'l',litro:'l',litros:'l',
+        ml:'ml',
+        b:'bandeja',bdj:'bandeja',bandeja:'bandeja',bandejas:'bandeja',
+        p:'paquete',paq:'paquete',paquete:'paquete',paquetes:'paquete',
+        bot:'botella',botella:'botella',botellas:'botella'
+      };
+      return (map[raw]||String(v).trim().toLowerCase()).slice(0,40);
+    };
+
     const items=Array.isArray(inv.items)?inv.items.slice(0,100).map(x=>({
       description:String(x?.description||'').trim().slice(0,300),
       quantity:n(x?.quantity),
-      unit:x?.unit?String(x.unit).trim().slice(0,40):null,
+      unit:normalizeUnit(x?.unit),
       unit_price:n(x?.unit_price),
       line_total:n(x?.line_total)
     })).filter(x=>x.description):[];
