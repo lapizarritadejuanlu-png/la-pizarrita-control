@@ -1,0 +1,79 @@
+(()=>{
+let qualityAdjusting=false;
+
+function addQualityStyles(){
+  if(document.getElementById('invoiceQualityStyle'))return;
+  const s=document.createElement('style');
+  s.id='invoiceQualityStyle';
+  s.textContent=`
+  .invoice-quality{margin-top:10px;padding:11px 12px;border-radius:12px;font-size:.79rem;line-height:1.4;font-weight:750}
+  .invoice-quality.ok{border:1px solid #365b45;background:#122019;color:#8ed4a6}
+  .invoice-quality.warn{border:1px solid #6b5631;background:#211b10;color:#e5c374}
+  .invoice-quality.neutral{border:1px solid #3b3d37;background:#151613;color:#aaa69e}
+  .quality-override{margin-top:9px;width:100%;padding:9px 10px!important}
+  `;
+  document.head.appendChild(s);
+}
+function qnum(raw){
+  if(raw===null||raw===undefined)return null;
+  let s=String(raw).trim();if(!s)return null;
+  s=s.replace(/[^0-9,.-]/g,'');
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
+  const n=Number(s);return Number.isFinite(n)?n:null;
+}
+function qualityState(){
+  const preview=document.getElementById('aiItemsPreview');
+  if(!preview||preview.style.display==='none')return null;
+  const base=qnum(document.getElementById('invBase')?.value);
+  const vals=[...preview.querySelectorAll('.ai-item-total')].map(x=>qnum(x.textContent)).filter(x=>x!==null);
+  const toggle=document.getElementById('toggleDetectedItems');
+  const savingProducts=toggle?toggle.textContent.trim().startsWith('No guardar'):true;
+  if(base===null||!vals.length)return{preview,base,vals,sum:null,diff:null,ok:null,savingProducts,override:preview.dataset.qualityOverride==='1'};
+  const sum=vals.reduce((a,b)=>a+b,0),diff=Math.abs(sum-base),tol=Math.max(.05,Math.abs(base)*.01);
+  return{preview,base,vals,sum,diff,ok:diff<=tol,tol,savingProducts,override:preview.dataset.qualityOverride==='1'};
+}
+function renderQuality(){
+  addQualityStyles();
+  const st=qualityState();if(!st)return;
+  st.preview.querySelector('.invoice-quality')?.remove();
+  const box=document.createElement('div');box.className='invoice-quality';
+  if(st.ok===null){box.classList.add('neutral');box.textContent='ℹ️ No se puede comprobar el cuadre porque falta la base o el total de las líneas.'}
+  else if(st.ok){box.classList.add('ok');box.textContent=`✓ Productos cuadran con la base: ${euro(st.sum)}`}
+  else if(!st.savingProducts){box.classList.add('neutral');box.textContent=`ℹ️ Productos: ${euro(st.sum)} · Base: ${euro(st.base)}. Has elegido no guardar los productos.`}
+  else if(st.override){box.classList.add('warn');box.innerHTML=`⚠ Diferencia aceptada manualmente · Productos ${euro(st.sum)} · Base ${euro(st.base)} · Diferencia ${euro(st.diff)}.`}
+  else{
+    box.classList.add('warn');
+    box.innerHTML=`⚠ Revisar antes de guardar: los productos suman <strong>${euro(st.sum)}</strong> y la base es <strong>${euro(st.base)}</strong>. Diferencia: <strong>${euro(st.diff)}</strong>.<button type="button" class="secondary quality-override">Guardar precios igualmente</button>`;
+    box.querySelector('.quality-override')?.addEventListener('click',()=>{st.preview.dataset.qualityOverride='1';renderQuality();toast('Diferencia aceptada. Revisa los importes antes de guardar.')});
+  }
+  st.preview.appendChild(box);
+}
+function scheduleQuality(){if(qualityAdjusting)return;qualityAdjusting=true;setTimeout(()=>{qualityAdjusting=false;renderQuality()},0)}
+
+addQualityStyles();
+const previousReadInvoiceAI=readInvoiceAI;
+readInvoiceAI=async function(){
+  const result=await previousReadInvoiceAI.apply(this,arguments);
+  const p=document.getElementById('aiItemsPreview');if(p)delete p.dataset.qualityOverride;
+  scheduleQuality();return result;
+};
+const previousSaveInvoiceQuality=saveInvoice;
+saveInvoice=async function(){
+  const st=qualityState();
+  if(st&&st.ok===false&&st.savingProducts&&!st.override){
+    renderQuality();
+    st.preview.scrollIntoView({behavior:'smooth',block:'center'});
+    toast('Revisa el cuadre de productos antes de guardar.');
+    return;
+  }
+  return previousSaveInvoiceQuality.apply(this,arguments);
+};
+const previousBindQuality=bind;
+bind=function(){
+  previousBindQuality();addQualityStyles();scheduleQuality();
+  document.getElementById('invBase')?.addEventListener('input',scheduleQuality);
+  document.getElementById('aiItemsPreview')?.addEventListener('click',e=>{if(e.target.closest('[data-remove-item]')||e.target.closest('#toggleDetectedItems'))scheduleQuality()});
+};
+if(session)renderApp();
+})();
