@@ -11,11 +11,18 @@ function packEquivalent(name,price,unit){
   const u=ntext(unit);
   if(u==='kg')return{value:p,label:'kg'};
   if(u==='l'||u==='litro')return{value:p,label:'l'};
-  const text=String(name||'').toUpperCase().replace(/,/g,'.').replace(/\s+/g,'');
-  let m=text.match(/(\d+(?:\.\d+)?)\s*[X*]\s*(\d+(?:\.\d+)?)(KG|KGS|G|GR|GRS|L|LT|LTS|ML)\b/);
+
+  // Conservamos los espacios para no pegar la unidad con la palabra siguiente.
+  // Ej.: "4*500GR TRESSORO" debe detectar 4 x 500 g correctamente.
+  const text=String(name||'').toUpperCase().replace(/,/g,'.');
+  const m=text.match(/(\d+(?:\.\d+)?)\s*[X*×]\s*(\d+(?:\.\d+)?)\s*(KGS?|GRS?|G|LTS?|LT|ML)(?=\s|[^A-Z]|$)/i);
   if(!m)return null;
-  const packs=Number(m[1]),size=Number(m[2]);if(!Number.isFinite(packs)||!Number.isFinite(size)||packs<=0||size<=0)return null;
-  const kind=m[3];let total=null,label=null;
+
+  const packs=Number(m[1]),size=Number(m[2]);
+  if(!Number.isFinite(packs)||!Number.isFinite(size)||packs<=0||size<=0)return null;
+
+  const kind=String(m[3]).toUpperCase();
+  let total=null,label=null;
   if(['KG','KGS'].includes(kind)){total=packs*size;label='kg'}
   else if(['G','GR','GRS'].includes(kind)){total=packs*size/1000;label='kg'}
   else if(['L','LT','LTS'].includes(kind)){total=packs*size;label='l'}
