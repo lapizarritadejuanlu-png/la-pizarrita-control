@@ -19,7 +19,7 @@ module.exports = async function handler(req,res){
   const key=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN;
   if(!key) return res.status(503).json({
     code:'AI_NOT_CONFIGURED',
-    error:'AI Gateway no configurado'
+    error:'La lectura automática no está disponible ahora mismo.'
   });
 
   try{
@@ -79,10 +79,13 @@ Reglas estrictas:
     let data;
     try{data=JSON.parse(raw)}catch{data={}}
 
-    if(!r.ok)
+    if(!r.ok){
+      console.error('AI Gateway error',r.status,data?.error?.type||data?.type||'unknown');
       return res.status(502).json({
-        error:data?.error?.message||data?.message||'Error de AI Gateway'
+        code:'AI_SERVICE_ERROR',
+        error:'No se pudo leer la factura ahora mismo. Inténtalo de nuevo.'
       });
+    }
 
     let text='';
 
@@ -102,7 +105,7 @@ Reglas estrictas:
 
     if(!match)
       return res.status(502).json({
-        error:'La IA no devolvió datos estructurados'
+        error:'No se han podido identificar los datos de la factura.'
       });
 
     let inv;
@@ -111,7 +114,7 @@ Reglas estrictas:
       inv=JSON.parse(match[0]);
     }catch{
       return res.status(502).json({
-        error:'No se pudo interpretar la respuesta de la IA'
+        error:'No se han podido identificar los datos de la factura.'
       });
     }
 
@@ -140,8 +143,10 @@ Reglas estrictas:
     return res.status(200).json({invoice:clean});
 
   }catch(e){
+    console.error('Invoice AI internal error',e?.message||'unknown');
     return res.status(500).json({
-      error:e.message||'Error interno'
+      code:'AI_INTERNAL_ERROR',
+      error:'No se pudo procesar la factura. Inténtalo de nuevo.'
     });
   }
 }
