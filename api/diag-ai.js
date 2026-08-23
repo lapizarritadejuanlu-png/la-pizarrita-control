@@ -1,0 +1,7 @@
+module.exports = async function handler(req,res){
+  return res.status(200).json({
+    ai_gateway_key: !!process.env.AI_GATEWAY_API_KEY,
+    vercel_oidc_token: !!process.env.VERCEL_OIDC_TOKEN,
+    vercel_env: process.env.VERCEL_ENV || null
+  });
+}
