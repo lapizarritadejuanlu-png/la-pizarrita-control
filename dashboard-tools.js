@@ -7,7 +7,8 @@ function addDashboardStyles(){
   `;document.head.appendChild(s);
 }
 function monthShift(m,delta){const [y,mo]=m.split('-').map(Number);const d=new Date(y,mo-1+delta,2);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
-function monthInvoices(m){return (Array.isArray(invoices)?invoices:[]).filter(x=>(x.invoice_date||'').slice(0,7)===m)}
+function countableDocument(x){return typeof window.isAccountingDocument==='function'?window.isAccountingDocument(x):((x?.document_type||'invoice')!=='delivery_note'&&x?.document_status!=='linked')}
+function monthInvoices(m){return (Array.isArray(invoices)?invoices:[]).filter(x=>(x.invoice_date||'').slice(0,7)===m&&countableDocument(x))}
 function nsum(rows,key){return rows.reduce((a,x)=>a+(Number(x[key])||0),0)}
 function priceAlertCounts(){
   const map=new Map();for(const p of Array.isArray(products)?products:[]){const k=`${String(p.name||'').trim().toLowerCase()}|${String(p.unit||'').trim().toLowerCase()}`;if(!map.has(k))map.set(k,[]);map.get(k).push(p)}
@@ -16,15 +17,15 @@ function priceAlertCounts(){
   return{up,down,same};
 }
 function monthlyIntelligence(){
-  const inv=monthInvoices(selectedMonth),prevMonth=monthShift(selectedMonth,-1),prev=monthInvoices(prevMonth);
+  const inv=monthInvoices(selectedMonth),prevMonth=monthShift(selectedMonth,-1),prev=monthInvoices(prevMonth),formal=inv.filter(x=>(x.document_type||'invoice')==='invoice');
   const gross=inv.filter(x=>(Number(x.total)||0)>0).reduce((a,x)=>a+Number(x.total||0),0),credits=inv.filter(x=>(Number(x.total)||0)<0).reduce((a,x)=>a+Number(x.total||0),0),net=gross+credits;
-  const base=nsum(inv,'base_amount'),vat=nsum(inv,'vat_amount'),prevNet=nsum(prev,'total');
+  const base=nsum(formal,'base_amount'),vat=nsum(formal,'vat_amount'),prevNet=nsum(prev,'total');
   let comparison='Sin datos suficientes para comparar con el mes anterior.';
   if(inv.length&&prev.length&&Math.abs(prevNet)>.009){const pct=((net-prevNet)/Math.abs(prevNet))*100;const sign=pct>0?'+':'';comparison=`Compras netas: ${sign}${pct.toLocaleString('es-ES',{maximumFractionDigits:1})}% frente a ${monthLabel(prevMonth)}.`}
   const prov=new Map();for(const x of inv){const name=(x.supplier||'Sin proveedor').trim();prov.set(name,(prov.get(name)||0)+(Number(x.total)||0))}
   const top=[...prov.entries()].sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,3);
-  const alerts=priceAlertCounts();
-  return `<div class="section-title">Control del mes</div><div class="card"><div class="intel-grid"><div class="intel-box"><div class="intel-label">Facturas</div><div class="intel-value">${inv.length}</div><div class="intel-sub">${esc(monthLabel(selectedMonth))}</div></div><div class="intel-box"><div class="intel-label">Compras netas</div><div class="intel-value">${euro(net)}</div><div class="intel-sub">Bruto ${euro(gross)}${credits?` · Abonos ${euro(credits)}`:''}</div></div><div class="intel-box"><div class="intel-label">Base imponible</div><div class="intel-value">${euro(base)}</div></div><div class="intel-box"><div class="intel-label">IVA facturas</div><div class="intel-value">${euro(vat)}</div></div></div><p class="intel-note">${esc(comparison)}</p>${top.length?`<div class="intel-list">${top.map(([name,total])=>`<div class="intel-row"><span class="intel-name">${esc(name)}</span><span class="intel-amount">${euro(total)}</span></div>`).join('')}</div>`:'<p class="intel-note">Todavía no hay compras registradas en este mes.</p>'}<div class="intel-alerts"><span class="intel-pill intel-up">▲ ${alerts.up} subidas de precio</span><span class="intel-pill intel-down">▼ ${alerts.down} bajadas</span><span class="intel-pill intel-neutral">=${alerts.same} sin cambio</span></div></div>`;
+  const alerts=priceAlertCounts(),tickets=inv.filter(x=>x.document_type==='ticket').length,pending=(Array.isArray(invoices)?invoices:[]).filter(x=>x.document_type==='delivery_note'&&x.document_status!=='linked').length;
+  return `<div class="section-title">Control del mes</div><div class="card"><div class="intel-grid"><div class="intel-box"><div class="intel-label">Compras contabilizadas</div><div class="intel-value">${inv.length}</div><div class="intel-sub">${esc(monthLabel(selectedMonth))}${tickets?` · ${tickets} ticket${tickets===1?'':'s'}`:''}</div></div><div class="intel-box"><div class="intel-label">Compras netas</div><div class="intel-value">${euro(net)}</div><div class="intel-sub">Bruto ${euro(gross)}${credits?` · Abonos ${euro(credits)}`:''}</div></div><div class="intel-box"><div class="intel-label">Base facturas oficiales</div><div class="intel-value">${euro(base)}</div></div><div class="intel-box"><div class="intel-label">IVA facturas oficiales</div><div class="intel-value">${euro(vat)}</div></div></div><p class="intel-note">${esc(comparison)}${pending?` · Hay ${pending} albarán${pending===1?'':'es'} pendiente${pending===1?'':'s'} de factura.`:''}</p>${top.length?`<div class="intel-list">${top.map(([name,total])=>`<div class="intel-row"><span class="intel-name">${esc(name)}</span><span class="intel-amount">${euro(total)}</span></div>`).join('')}</div>`:'<p class="intel-note">Todavía no hay compras registradas en este mes.</p>'}<div class="intel-alerts"><span class="intel-pill intel-up">▲ ${alerts.up} subidas de precio</span><span class="intel-pill intel-down">▼ ${alerts.down} bajadas</span><span class="intel-pill intel-neutral">=${alerts.same} sin cambio</span></div></div>`;
 }
 addDashboardStyles();
 const previousDashboard=dashboard;
