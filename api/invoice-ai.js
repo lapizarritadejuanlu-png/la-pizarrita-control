@@ -56,7 +56,7 @@ module.exports = async function handler(req,res){
         'Content-Type':'application/json'
       },
       body:JSON.stringify({
-        model:'openai/gpt-5.6-sol',
+        model:'alibaba/qwen3.5-flash',
         input:[{
           type:'message',
           role:'user',
