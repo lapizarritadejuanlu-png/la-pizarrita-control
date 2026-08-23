@@ -3,6 +3,8 @@ name: Validate work-next
 on:
   push:
     branches: [work-next]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
