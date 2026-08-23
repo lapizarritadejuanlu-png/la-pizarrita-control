@@ -1,0 +1,19 @@
+{
+  "name": "La Pizarrita Control",
+  "short_name": "La Pizarrita",
+  "description": "Control de facturas, compras, productos y proveedores de La Pizarrita de Juanlu",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0c0b",
+  "theme_color": "#0b0c0b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
