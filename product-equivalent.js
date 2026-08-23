@@ -12,6 +12,12 @@ function packEquivalent(name,price,unit){
   if(u==='kg')return{value:p,label:'kg'};
   if(u==='l'||u==='litro')return{value:p,label:'l'};
 
+  // Solo calculamos el equivalente de un formato múltiple cuando el precio
+  // corresponde claramente al envase completo. Si la unidad es "unidad",
+  // "botella", etc., el precio podría ser por pieza y dividirlo por todo el
+  // contenido del texto daría un €/kg o €/l falso.
+  if(!['caja','paquete','bandeja'].includes(u))return null;
+
   // Conservamos los espacios para no pegar la unidad con la palabra siguiente.
   // Ej.: "4*500GR TRESSORO" debe detectar 4 x 500 g correctamente.
   const text=String(name||'').toUpperCase().replace(/,/g,'.');
