@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0b0c0b"/>
+  <rect x="34" y="34" width="444" height="444" rx="92" fill="none" stroke="#f7a51a" stroke-width="12"/>
+  <text x="256" y="220" text-anchor="middle" fill="#f1a05a" font-family="Arial,Helvetica,sans-serif" font-size="58" font-weight="800" letter-spacing="5">LA PIZARRITA</text>
+  <text x="256" y="330" text-anchor="middle" fill="#f5f2eb" font-family="Georgia,serif" font-size="150" font-weight="700">PJ</text>
+</svg>
