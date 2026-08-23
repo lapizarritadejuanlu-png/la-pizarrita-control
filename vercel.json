@@ -1,4 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "work-next": false
+    }
+  },
   "functions": {
     "api/invoice-ai.js": { "maxDuration": 60 }
   },
