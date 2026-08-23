@@ -17,7 +17,7 @@ function applyFlexibleProductSearch(){
   let count=0,records=0;
   for(const row of rows){
     const haystack=productSearchNorm(row.dataset.search||'');
-    const show=(!q||haystack.includes(q))&&(trend==='all'||row.dataset.trend===trend);
+    const show=(!q||haystack.startsWith(q))&&(trend==='all'||row.dataset.trend===trend);
     row.style.display=show?'flex':'none';
     if(show){
       count++;
@@ -33,7 +33,9 @@ function applyFlexibleProductSearch(){
 const previousBindFlexibleProductSearch=bind;
 bind=function(){
   previousBindFlexibleProductSearch();
-  document.getElementById('productSearch')?.addEventListener('input',applyFlexibleProductSearch);
+  const search=document.getElementById('productSearch');
+  if(search)search.placeholder='Escribe las primeras letras del producto';
+  search?.addEventListener('input',applyFlexibleProductSearch);
   document.getElementById('productTrend')?.addEventListener('change',applyFlexibleProductSearch);
   applyFlexibleProductSearch();
 };
