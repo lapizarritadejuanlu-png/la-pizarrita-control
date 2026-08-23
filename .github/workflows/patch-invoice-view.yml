@@ -70,3 +70,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Open saved invoice files from the app"
           git push
+
+# triggered after initial workflow registration
