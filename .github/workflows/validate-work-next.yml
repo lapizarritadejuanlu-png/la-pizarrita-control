@@ -39,3 +39,25 @@ jobs:
           if(duplicates.length) throw new Error(`Duplicate scripts: ${[...new Set(duplicates)].join(', ')}`);
           console.log(`Validated ${refs.length} referenced scripts: ${refs.join(', ')}`);
           NODE
+      - name: Check Vercel config and version endpoint
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          JSON.parse(fs.readFileSync('vercel.json','utf8'));
+          process.env.VERCEL_GIT_COMMIT_SHA='0123456789abcdef';
+          process.env.VERCEL_GIT_COMMIT_REF='work-next';
+          process.env.VERCEL_ENV='preview';
+          process.env.VERCEL_URL='example.vercel.app';
+          const handler=require('./api/version.js');
+          let code=null,body=null;
+          const res={
+            setHeader(){},
+            status(n){code=n;return this},
+            json(x){body=x;return this}
+          };
+          handler({},res);
+          if(code!==200)throw new Error(`Version endpoint returned ${code}`);
+          if(body?.commit!=='0123456789abcdef'||body?.branch!=='work-next'||body?.environment!=='preview')throw new Error('Version endpoint payload mismatch');
+          console.log('Vercel config and version endpoint OK');
+          NODE
