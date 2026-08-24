@@ -14,10 +14,12 @@ function addInvoiceReviewStyles(){
   `;
   document.head.appendChild(s);
 }
-function itemMeta(x){const a=[];if(x.quantity!==null&&x.quantity!==undefined)a.push(`${x.quantity}${x.unit?' '+esc(x.unit):''}`);if(x.unit_price!==null&&x.unit_price!==undefined)a.push(`${euro(x.unit_price)} / ${esc(x.unit||'unidad')}`);return a.join(' · ')}
+function detailPrice(n){const x=Number(n);if(!Number.isFinite(x))return'';return x.toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:4})+' €'}
+function detailBoxes(n){const x=Number(n);if(!Number.isFinite(x))return'';return `${x} ${Math.abs(x-1)<1e-9?'caja':'cajas'}`}
+function itemMeta(x){const a=[];if(x.box_count!==null&&x.box_count!==undefined)a.push(detailBoxes(x.box_count));if(x.quantity!==null&&x.quantity!==undefined)a.push(`${x.quantity}${x.unit?' '+esc(x.unit):''}`);if(x.unit_price!==null&&x.unit_price!==undefined)a.push(`${detailPrice(x.unit_price)} / ${esc(x.unit||'unidad')}`);return a.join(' · ')}
 function findInvoiceRow(button){return button?.closest('.invoice-row')||null}
 function reviewNum(v){if(v===null||v===undefined||v==='')return null;const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:null}
-function reviewItems(raw){return(Array.isArray(raw)?raw:[]).slice(0,100).map(x=>({description:String(x?.description||'').trim().slice(0,300),quantity:reviewNum(x?.quantity),unit:x?.unit?String(x.unit).trim().slice(0,40):null,unit_price:reviewNum(x?.unit_price),line_total:reviewNum(x?.line_total)})).filter(x=>x.description)}
+function reviewItems(raw){return(Array.isArray(raw)?raw:[]).slice(0,100).map(x=>({description:String(x?.description||'').trim().slice(0,300),box_count:reviewNum(x?.box_count),quantity:reviewNum(x?.quantity),unit:x?.unit?String(x.unit).trim().slice(0,40):null,unit_price:reviewNum(x?.unit_price),line_total:reviewNum(x?.line_total)})).filter(x=>x.description)}
 function blobDataUrl(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result||''));r.onerror=()=>reject(new Error('No se pudo preparar el archivo'));r.readAsDataURL(blob)})}
 async function storedInvoiceBlob(path){
   const enc=path.split('/').map(encodeURIComponent).join('/');
@@ -34,14 +36,14 @@ async function analyzeStoredInvoice(id,box){
     const items=reviewItems(data?.invoice?.items);
     await api(`/rest/v1/invoice_items?invoice_id=eq.${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
     await api(`/rest/v1/products?source_invoice_id=eq.${encodeURIComponent(id)}`,{method:'DELETE'}).catch(()=>{});
-    const lines=items.map(x=>({user_id:session.user.id,invoice_id:id,description:x.description,quantity:x.quantity,unit:x.unit,unit_price:x.unit_price,line_total:x.line_total}));
+    const lines=items.map(x=>({user_id:session.user.id,invoice_id:id,description:x.description,box_count:x.box_count,quantity:x.quantity,unit:x.unit,unit_price:x.unit_price,line_total:x.line_total}));
     if(lines.length)await api('/rest/v1/invoice_items',{method:'POST',headers:{Prefer:'return=minimal'},body:lines});
     const savePrices=(inv.document_type||'invoice')!=='delivery_note'&&inv.document_status!=='linked';
     const prices=savePrices?items.filter(x=>x.unit_price!==null&&Number.isFinite(Number(x.unit_price))&&Number(x.unit_price)>0).map(x=>({user_id:session.user.id,name:x.description,supplier:inv.supplier,price_date:inv.invoice_date,price:Number(x.unit_price),unit:x.unit||'sin especificar',net_cost:null,source_invoice_id:id})):[];
     if(prices.length)await api('/rest/v1/products',{method:'POST',headers:{Prefer:'return=minimal'},body:prices});
     await api(`/rest/v1/invoices?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:{extraction_status:'reviewed',extraction_json:{items}}});
     const suffix=savePrices?`${prices.length} precios guardados`:'sin precios definitivos';
-    toast(items.length?`IA terminada · ${items.length} productos · ${suffix}`:'IA terminada · no encontró líneas claras');
+    toast(items.length?`IA terminada · ${items.length} referencias · ${suffix}`:'IA terminada · no encontró líneas claras');
     openInvoiceItemsId=null;await loadData();
   }catch(e){box.innerHTML=`<div class="invoice-items-detail-title">🧾 Productos de este documento</div><div class="invoice-items-empty">${esc(e.message||'No se pudo analizar el archivo.')}</div><button type="button" class="secondary reanalyze-btn" data-analyze-saved="${esc(id)}">🤖 Intentar de nuevo</button>`;box.querySelector('[data-analyze-saved]')?.addEventListener('click',()=>analyzeStoredInvoice(id,box));toast(e.message||'No se pudo analizar')}finally{setBusy(false)}
 }
@@ -58,7 +60,7 @@ async function toggleSavedItems(id,button){
     const rows=Array.isArray(items)?items:[];
     if(!rows.length){const inv=invoices.find(x=>x.id===id);box.innerHTML=`<div class="invoice-items-detail-title">🧾 Productos de este documento</div><div class="invoice-items-empty">No hay líneas de producto guardadas en este documento. El archivo original y los importes de cabecera siguen guardados.</div>${inv?.file_path?`<button type="button" class="primary reanalyze-btn" data-analyze-saved="${esc(id)}">🤖 Analizar productos con IA</button>`:''}`;box.querySelector('[data-analyze-saved]')?.addEventListener('click',()=>analyzeStoredInvoice(id,box));return}
     const sum=rows.reduce((a,x)=>a+(Number(x.line_total)||0),0),withPrice=rows.filter(x=>x.unit_price!==null&&x.unit_price!==undefined).length;
-    box.innerHTML=`<div class="invoice-items-detail-head"><div class="invoice-items-detail-title">🧾 ${rows.length} producto${rows.length===1?'':'s'}</div><div class="invoice-items-detail-summary">${withPrice} con precio · ${euro(sum)}</div></div>${rows.map(x=>`<div class="saved-item"><div class="saved-item-main"><div class="saved-item-name">${esc(x.description||'Sin descripción')}</div>${itemMeta(x)?`<div class="saved-item-meta">${itemMeta(x)}</div>`:''}</div><div class="saved-item-total">${x.line_total!==null&&x.line_total!==undefined?euro(x.line_total):''}</div></div>`).join('')}`;
+    box.innerHTML=`<div class="invoice-items-detail-head"><div class="invoice-items-detail-title">🧾 ${rows.length} referencia${rows.length===1?'':'s'}</div><div class="invoice-items-detail-summary">${withPrice} con precio · ${euro(sum)}</div></div>${rows.map(x=>`<div class="saved-item"><div class="saved-item-main"><div class="saved-item-name">${esc(x.description||'Sin descripción')}</div>${itemMeta(x)?`<div class="saved-item-meta">${itemMeta(x)}</div>`:''}</div><div class="saved-item-total">${x.line_total!==null&&x.line_total!==undefined?euro(x.line_total):''}</div></div>`).join('')}`;
   }catch(e){box.innerHTML=`<div class="invoice-items-empty">No se pudieron cargar los productos: ${esc(e.message||'error')}</div>`}
 }
 
@@ -67,7 +69,7 @@ invoiceRow=function(x,actions=false){
   let html=previousInvoiceRow(x,actions);
   if(!actions)return html;
   const count=Array.isArray(x?.extraction_json?.items)?x.extraction_json.items.length:null;
-  const badge=x?.extraction_status==='reviewed'?`<div class="invoice-ai-badge">✓ IA revisada${count!==null?` · ${count} línea${count===1?'':'s'}`:''}</div>`:'';
+  const badge=x?.extraction_status==='reviewed'?`<div class="invoice-ai-badge">✓ IA revisada${count!==null?` · ${count} referencia${count===1?'':'s'}`:''}</div>`:'';
   if(badge)html=html.replace('<div class="invoice-actions">',badge+'<div class="invoice-actions">');
   html=html.replace('<div class="invoice-actions">',`<div class="invoice-actions"><button type="button" class="secondary invoice-products" data-invoice-products="${esc(x.id)}">🧾 Productos</button>`);
   return html;
