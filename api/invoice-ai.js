@@ -50,16 +50,58 @@ Reglas estrictas para items:
 8) Incluye únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como productos.
 9) description debe conservar un nombre útil del producto tal como aparece, limpiando solo códigos internos que no aporten información.
 10) Si hay una columna separada CAJAS/CJ/C, extrae ese número en box_count. Si además hay CANTIDAD, PESO o unidades, NO confundas ambas: box_count es cajas y quantity es la cantidad/peso/unidades de esa segunda columna.
-11) quantity es la cantidad real de la columna CANTIDAD/PESO/UD/KG/L. La letra o unidad impresa JUNTO a esa cantidad tiene prioridad sobre cualquier texto de embalaje que aparezca en description. Si solo existe una cantidad y claramente está expresada en cajas, usa quantity con unit="caja" y box_count=null para no duplicar.
+11) quantity es la cantidad real de la columna CANTIDAD/PESO/UD/KG/L. La cifra y la letra impresas EN ESA COLUMNA tienen prioridad absoluta sobre números del nombre o del embalaje. NO deduzcas quantity a partir de "6b x 800g", "4b x 1kg", "20pz", etc. Lee la celda de CANTIDAD directamente. Si solo existe una cantidad y claramente está expresada en cajas, usa quantity con unit="caja" y box_count=null para no duplicar.
 12) unit debe ser corta y normalizada. Usa preferentemente: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Convierte C/CJ a caja, UD/U a unidad, K a kg, GR a g y LT a l. Ejemplo obligatorio: si la fila muestra CAJAS=1 y CANTIDAD=4,00 K, devuelve box_count=1, quantity=4, unit="kg", aunque la descripción diga "4b x 1kg".
 13) MUY IMPORTANTE: unit_price debe representar el COSTE UNITARIO NETO EFECTIVAMENTE PAGADO antes de IVA, DESPUÉS de promociones, descuentos, bonificaciones o rebajas aplicadas a esa línea. Si el documento muestra una columna PRECIO BASE y otra PROMOCIÓN/DESCUENTO, NO uses el precio base sin descuento como unit_price. Usa el precio efectivo final.
 14) Cuando quantity y line_total estén claros, calcula unit_price = line_total / quantity. Esta regla tiene prioridad sobre un precio base impreso si existe descuento/promoción. Conserva hasta 6 decimales y no redondees a 2 decimales.
 15) line_total es el importe NETO FINAL de esa línea antes de IVA, después de descuentos/promociones de línea. Mantén importes negativos en abonos/devoluciones.
 16) Si una línea está poco clara, devuelve null en sus campos dudosos en vez de inventar.
-17) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].`;
+17) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].
+18) ANTES DE RESPONDER, vuelve a comprobar visualmente cada fila. No uses un 8 donde la columna CANTIDAD dice 6, ni un 65,31 donde la línea dice 60,31. Si quantity, unit_price y line_total no son coherentes, vuelve a leer la fila en la imagen en vez de forzar el cálculo con un dato dudoso.
+19) En una factura normal, si has capturado todas las líneas de compra, la suma de line_total debe coincidir con base_amount salvo que el propio documento muestre explícitamente un concepto adicional. Si no coincide, vuelve a revisar los dígitos de las líneas antes de responder.
+20) Comprueba también la cabecera: si no hay cargos adicionales explícitos, total debe ser coherente con base_amount + vat_amount. Si ves una diferencia de céntimos, vuelve a leer el TOTAL impreso; no lo inventes para cuadrar.`;
 
     const isPdf=type==='application/pdf'||dataUrl.startsWith('data:application/pdf');
     let text='';
+
+    const extractGatewayText=data=>{
+      let out='';
+      if(typeof data?.output_text==='string') out=data.output_text;
+      if(!out&&Array.isArray(data?.output)){
+        for(const item of data.output){
+          if(item.type==='message'&&Array.isArray(item.content)){
+            for(const c of item.content) if(typeof c.text==='string') out+=c.text;
+          }
+        }
+      }
+      return out;
+    };
+
+    const callImageModel=async(promptText,maxOutputTokens=4200)=>{
+      const content=[
+        {type:'input_text',text:promptText},
+        {type:'input_image',image_url:dataUrl,detail:'high'}
+      ];
+      const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{
+        method:'POST',
+        headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+        body:JSON.stringify({
+          model:'alibaba/qwen3.5-flash',
+          input:[{type:'message',role:'user',content}],
+          max_output_tokens:maxOutputTokens
+        })
+      });
+      const raw=await r.text();
+      let data;
+      try{data=JSON.parse(raw)}catch{data={}}
+      if(!r.ok){
+        const err=new Error('AI gateway error');
+        err.status=r.status;
+        err.kind=data?.error?.type||data?.type||'unknown';
+        throw err;
+      }
+      return extractGatewayText(data);
+    };
 
     if(isPdf){
       const {generateText}=await import('ai');
@@ -82,48 +124,94 @@ Reglas estrictas para items:
         return res.status(502).json({code:'AI_SERVICE_ERROR',error:'No se pudo leer el PDF ahora mismo. Inténtalo de nuevo.'});
       }
     }else{
-      const content=[
-        {type:'input_text',text:prompt},
-        {type:'input_image',image_url:dataUrl,detail:'high'}
-      ];
-      const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{
-        method:'POST',
-        headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'alibaba/qwen3.5-flash',
-          input:[{type:'message',role:'user',content}],
-          max_output_tokens:4200
-        })
-      });
-      const raw=await r.text();
-      let data;
-      try{data=JSON.parse(raw)}catch{data={}}
-      if(!r.ok){
-        console.error('AI Gateway error',r.status,data?.error?.type||data?.type||'unknown');
+      try{
+        text=await callImageModel(prompt,4200);
+      }catch(e){
+        console.error('AI Gateway error',e?.status||'unknown',e?.kind||e?.message||'unknown');
         return res.status(502).json({code:'AI_SERVICE_ERROR',error:'No se pudo leer el documento ahora mismo. Inténtalo de nuevo.'});
-      }
-      if(typeof data.output_text==='string') text=data.output_text;
-      if(!text&&Array.isArray(data.output)){
-        for(const item of data.output){
-          if(item.type==='message'&&Array.isArray(item.content)){
-            for(const c of item.content) if(typeof c.text==='string') text+=c.text;
-          }
-        }
       }
     }
 
-    const match=text.match(/\{[\s\S]*\}/);
-    if(!match) return res.status(502).json({error:'No se han podido identificar los datos del documento.'});
+    const parseJsonFromText=value=>{
+      const match=String(value||'').match(/\{[\s\S]*\}/);
+      if(!match) return null;
+      try{return JSON.parse(match[0])}catch{return null}
+    };
 
-    let inv;
-    try{inv=JSON.parse(match[0])}
-    catch{return res.status(502).json({error:'No se han podido identificar los datos del documento.'})}
+    let inv=parseJsonFromText(text);
+    if(!inv) return res.status(502).json({error:'No se han podido identificar los datos del documento.'});
 
     const n=v=>{
       if(v===null||v===undefined||v==='') return null;
       const x=Number(String(v).replace(',','.'));
       return Number.isFinite(x)?x:null;
     };
+    const round2=v=>Number(Number(v).toFixed(2));
+
+    const consistencyScore=obj=>{
+      if(!obj||typeof obj!=='object') return 1e9;
+      const base=n(obj.base_amount);
+      const vat=n(obj.vat_amount);
+      const total=n(obj.total);
+      const rows=Array.isArray(obj.items)?obj.items:[];
+      let score=0;
+
+      const lineTotals=rows.map(x=>n(x?.line_total));
+      if(base!==null&&lineTotals.length&&lineTotals.every(v=>v!==null)){
+        const sum=lineTotals.reduce((a,b)=>a+b,0);
+        score+=Math.abs(sum-base)*10;
+      }
+      if(base!==null&&vat!==null&&total!==null){
+        score+=Math.abs(total-(base+vat))*3;
+      }
+      for(const row of rows){
+        const q=n(row?.quantity);
+        const up=n(row?.unit_price);
+        const lt=n(row?.line_total);
+        if(q!==null&&up!==null&&lt!==null&&q!==0){
+          const diff=Math.abs((q*up)-lt);
+          const tolerance=Math.max(0.03,Math.abs(lt)*0.015);
+          if(diff>tolerance) score+=Math.min(diff,20)*0.5;
+        }
+      }
+      return score;
+    };
+
+    if(!isPdf&&String(inv.document_type||'')==='invoice'&&consistencyScore(inv)>0.15){
+      const base=n(inv.base_amount);
+      const vat=n(inv.vat_amount);
+      const total=n(inv.total);
+      const currentItems=Array.isArray(inv.items)?inv.items:[];
+      const currentSum=currentItems.map(x=>n(x?.line_total)).filter(v=>v!==null).reduce((a,b)=>a+b,0);
+      const verifier=`Vuelve a leer ESTA MISMA factura desde cero porque la primera extracción contiene incoherencias. Devuelve SOLO JSON válido con la MISMA estructura completa del intento anterior. No copies los números del texto de esta instrucción: úsalo solo para saber qué zonas debes revisar visualmente.
+
+Primera extracción sospechosa:
+- base_amount: ${base}
+- vat_amount: ${vat}
+- total: ${total}
+- suma provisional de line_total: ${round2(currentSum)}
+
+Revisa especialmente:
+1) La columna CANTIDAD fila por fila. NO saques la cantidad de números del nombre/embalaje. Si la celda dice 6,00 U, quantity=6 y unit="unidad" aunque el producto mencione 800g.
+2) CAJAS y CANTIDAD son columnas distintas.
+3) Cada line_total: vuelve a distinguir 60,31 de 65,31, 15,99 de 15,89, etc.
+4) El TOTAL final impreso en la cabecera/resumen. No cambies un número solo para cuadrar: léelo otra vez de la imagen.
+5) Después de releer, comprueba aritméticamente que la suma de line_total sea coherente con base_amount y que total sea coherente con base_amount + vat_amount cuando no haya cargos adicionales explícitos.
+6) unit_price debe ser el coste neto real tras promociones y, si quantity y line_total son fiables, unit_price=line_total/quantity.
+
+Devuelve exactamente:
+{"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"items":[{"description":"texto","box_count":numero o null,"quantity":numero o null,"unit":"texto o null","unit_price":numero o null,"line_total":numero o null}]}`;
+      try{
+        const verifiedText=await callImageModel(verifier,3200);
+        const verified=parseJsonFromText(verifiedText);
+        if(verified&&consistencyScore(verified)+0.05<consistencyScore(inv)){
+          inv=verified;
+          console.log('Invoice AI verifier replaced inconsistent first pass');
+        }
+      }catch(e){
+        console.warn('Invoice AI verifier skipped',e?.status||'unknown',e?.kind||e?.message||'unknown');
+      }
+    }
 
     const normalizeDate=v=>{
       if(!v) return null;
