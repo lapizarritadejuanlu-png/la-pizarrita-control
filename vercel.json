@@ -6,7 +6,8 @@
     }
   },
   "functions": {
-    "api/invoice-ai.js": { "maxDuration": 180 }
+    "api/invoice-ai.js": { "maxDuration": 180 },
+    "api/invoice-ai-v2.js": { "maxDuration": 160 }
   },
   "headers": [
     {
