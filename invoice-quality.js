@@ -25,26 +25,31 @@ function qnum(raw){
 function qualityState(){
   const preview=document.getElementById('aiItemsPreview');
   if(!preview||preview.style.display==='none')return null;
+  const docType=document.getElementById('invDocType')?.value||'invoice';
   const base=qnum(document.getElementById('invBase')?.value);
+  const total=qnum(document.getElementById('invTotal')?.value);
+  const target=docType==='ticket'?(total??base):(base??total);
+  const targetLabel=docType==='ticket'?'total':'base';
   const vals=[...preview.querySelectorAll('.ai-item-total')].map(x=>qnum(x.textContent)).filter(x=>x!==null);
   const toggle=document.getElementById('toggleDetectedItems');
   const savingProducts=toggle?toggle.textContent.trim().startsWith('No guardar'):true;
-  if(base===null||!vals.length)return{preview,base,vals,sum:null,diff:null,ok:null,savingProducts,override:preview.dataset.qualityOverride==='1'};
-  const sum=vals.reduce((a,b)=>a+b,0),diff=Math.abs(sum-base),tol=Math.max(.05,Math.abs(base)*.01);
-  return{preview,base,vals,sum,diff,ok:diff<=tol,tol,savingProducts,override:preview.dataset.qualityOverride==='1'};
+  if(target===null||!vals.length)return{preview,docType,target,targetLabel,vals,sum:null,diff:null,ok:null,savingProducts,override:preview.dataset.qualityOverride==='1'};
+  const sum=vals.reduce((a,b)=>a+b,0),diff=Math.abs(sum-target),tol=Math.max(.05,Math.abs(target)*.01);
+  return{preview,docType,target,targetLabel,vals,sum,diff,ok:diff<=tol,tol,savingProducts,override:preview.dataset.qualityOverride==='1'};
 }
 function renderQuality(){
   addQualityStyles();
   const st=qualityState();if(!st)return;
   st.preview.querySelector('.invoice-quality')?.remove();
   const box=document.createElement('div');box.className='invoice-quality';
-  if(st.ok===null){box.classList.add('neutral');box.textContent='ℹ️ No se puede comprobar el cuadre porque falta la base o el total de las líneas.'}
-  else if(st.ok){box.classList.add('ok');box.textContent=`✓ Productos cuadran con la base: ${euro(st.sum)}`}
-  else if(!st.savingProducts){box.classList.add('neutral');box.textContent=`ℹ️ Productos: ${euro(st.sum)} · Base: ${euro(st.base)}. Has elegido no guardar los productos.`}
-  else if(st.override){box.classList.add('warn');box.innerHTML=`⚠ Diferencia aceptada manualmente · Productos ${euro(st.sum)} · Base ${euro(st.base)} · Diferencia ${euro(st.diff)}.`}
+  const label=st.targetLabel==='total'?'total':'base';
+  if(st.ok===null){box.classList.add('neutral');box.textContent='ℹ️ No se puede comprobar el cuadre porque falta el importe de referencia o el total de las líneas.'}
+  else if(st.ok){box.classList.add('ok');box.textContent=`✓ Productos cuadran con el ${label}: ${euro(st.sum)}`}
+  else if(!st.savingProducts){box.classList.add('neutral');box.textContent=`ℹ️ Productos: ${euro(st.sum)} · ${label[0].toUpperCase()+label.slice(1)}: ${euro(st.target)}. Has elegido no guardar los productos.`}
+  else if(st.override){box.classList.add('warn');box.innerHTML=`⚠ Diferencia aceptada manualmente · Productos ${euro(st.sum)} · ${label[0].toUpperCase()+label.slice(1)} ${euro(st.target)} · Diferencia ${euro(st.diff)}.`}
   else{
     box.classList.add('warn');
-    box.innerHTML=`⚠ Revisar antes de guardar: los productos suman <strong>${euro(st.sum)}</strong> y la base es <strong>${euro(st.base)}</strong>. Diferencia: <strong>${euro(st.diff)}</strong>.<button type="button" class="secondary quality-override">Guardar precios igualmente</button>`;
+    box.innerHTML=`⚠ Revisar antes de guardar: los productos suman <strong>${euro(st.sum)}</strong> y el ${label} es <strong>${euro(st.target)}</strong>. Diferencia: <strong>${euro(st.diff)}</strong>.<button type="button" class="secondary quality-override">Guardar precios igualmente</button>`;
     box.querySelector('.quality-override')?.addEventListener('click',()=>{st.preview.dataset.qualityOverride='1';renderQuality();toast('Diferencia aceptada. Revisa los importes antes de guardar.')});
   }
   st.preview.appendChild(box);
@@ -73,6 +78,8 @@ const previousBindQuality=bind;
 bind=function(){
   previousBindQuality();addQualityStyles();scheduleQuality();
   document.getElementById('invBase')?.addEventListener('input',scheduleQuality);
+  document.getElementById('invTotal')?.addEventListener('input',scheduleQuality);
+  document.getElementById('invDocType')?.addEventListener('change',scheduleQuality);
   document.getElementById('aiItemsPreview')?.addEventListener('click',e=>{if(e.target.closest('[data-remove-item]')||e.target.closest('#toggleDetectedItems'))scheduleQuality()});
 };
 if(session)renderApp();
