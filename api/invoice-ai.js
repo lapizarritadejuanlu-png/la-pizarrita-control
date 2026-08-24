@@ -50,8 +50,8 @@ Reglas estrictas para items:
 8) Incluye únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como productos.
 9) description debe conservar un nombre útil del producto tal como aparece, limpiando solo códigos internos que no aporten información.
 10) Si hay una columna separada CAJAS/CJ/C, extrae ese número en box_count. Si además hay CANTIDAD, PESO o unidades, NO confundas ambas: box_count es cajas y quantity es la cantidad/peso/unidades de esa segunda columna.
-11) quantity es la cantidad real de CANTIDAD/PESO/UD/KG/L. Si solo existe una cantidad y claramente está expresada en cajas, usa quantity con unit="caja" y box_count=null para no duplicar.
-12) unit debe ser corta y normalizada. Usa preferentemente: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Convierte C/CJ a caja, UD/U a unidad, K a kg, GR a g y LT a l.
+11) quantity es la cantidad real de la columna CANTIDAD/PESO/UD/KG/L. La letra o unidad impresa JUNTO a esa cantidad tiene prioridad sobre cualquier texto de embalaje que aparezca en description. Si solo existe una cantidad y claramente está expresada en cajas, usa quantity con unit="caja" y box_count=null para no duplicar.
+12) unit debe ser corta y normalizada. Usa preferentemente: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Convierte C/CJ a caja, UD/U a unidad, K a kg, GR a g y LT a l. Ejemplo obligatorio: si la fila muestra CAJAS=1 y CANTIDAD=4,00 K, devuelve box_count=1, quantity=4, unit="kg", aunque la descripción diga "4b x 1kg".
 13) MUY IMPORTANTE: unit_price debe representar el COSTE UNITARIO NETO EFECTIVAMENTE PAGADO antes de IVA, DESPUÉS de promociones, descuentos, bonificaciones o rebajas aplicadas a esa línea. Si el documento muestra una columna PRECIO BASE y otra PROMOCIÓN/DESCUENTO, NO uses el precio base sin descuento como unit_price. Usa el precio efectivo final.
 14) Cuando quantity y line_total estén claros, calcula unit_price = line_total / quantity. Esta regla tiene prioridad sobre un precio base impreso si existe descuento/promoción. Conserva hasta 6 decimales y no redondees a 2 decimales.
 15) line_total es el importe NETO FINAL de esa línea antes de IVA, después de descuentos/promociones de línea. Mantén importes negativos en abonos/devoluciones.
@@ -149,7 +149,35 @@ Reglas estrictas para items:
       return (map[raw]||String(v).trim().toLowerCase()).slice(0,40);
     };
 
+    const correctUnitFromPackaging=(description,boxCount,quantity,unit)=>{
+      const normalized=normalizeUnit(unit);
+      if(quantity===null||quantity===undefined||quantity<0) return normalized;
+      if(normalized!=='unidad'&&normalized!==null) return normalized;
+
+      const d=String(description||'').toLowerCase().replace(/,/g,'.');
+      const boxes=boxCount!==null&&boxCount!==undefined&&boxCount>0?boxCount:1;
+      const close=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<=Math.max(0.01,Math.abs(b)*0.01);
+
+      const kgPack=d.match(/(\d+(?:\.\d+)?)\s*(?:b|bolsa|bolsas|bandeja|bandejas|paq|paquete|paquetes)\s*x\s*(\d+(?:\.\d+)?)\s*kg\b/i);
+      if(kgPack){
+        const packs=Number(kgPack[1]);
+        const kgEach=Number(kgPack[2]);
+        if(close(quantity,packs*kgEach*boxes)) return 'kg';
+      }
+
+      const gPack=d.match(/(\d+(?:\.\d+)?)\s*(?:b|bolsa|bolsas|bandeja|bandejas|paq|paquete|paquetes)\s*x\s*(\d+(?:\.\d+)?)\s*g\b/i);
+      if(gPack){
+        const packs=Number(gPack[1]);
+        const gramsEach=Number(gPack[2]);
+        if(close(quantity,(packs*gramsEach*boxes)/1000)) return 'kg';
+      }
+
+      return normalized;
+    };
+
     const items=Array.isArray(inv.items)?inv.items.slice(0,100).map(x=>{
+      const description=String(x?.description||'').trim().slice(0,300);
+      const boxCount=n(x?.box_count);
       const quantity=n(x?.quantity);
       const lineTotal=n(x?.line_total);
       let unitPrice=n(x?.unit_price);
@@ -158,10 +186,10 @@ Reglas estrictas para items:
         if(Number.isFinite(effective)) unitPrice=Number(effective.toFixed(6));
       }
       return{
-        description:String(x?.description||'').trim().slice(0,300),
-        box_count:n(x?.box_count),
+        description,
+        box_count:boxCount,
         quantity,
-        unit:normalizeUnit(x?.unit),
+        unit:correctUnitFromPackaging(description,boxCount,quantity,x?.unit),
         unit_price:unitPrice,
         line_total:lineTotal
       };
