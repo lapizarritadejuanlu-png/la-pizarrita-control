@@ -1,10 +1,4 @@
 (()=>{
-function qtyFromMeta(text=''){
-  const m=String(text).trim().match(/^(-?\d+(?:[.,]\d+)?)/);
-  if(!m)return null;
-  const n=Number(m[1].replace(',','.'));
-  return Number.isFinite(n)?n:null;
-}
 function plural(n,sing,plur){return `${n} ${Math.abs(n-1)<1e-9?sing:plur}`}
 function clarifyCounts(root=document){
   root.querySelectorAll?.('.ai-items-preview .ai-items-title').forEach(el=>{
@@ -14,14 +8,8 @@ function clarifyCounts(root=document){
   root.querySelectorAll?.('.invoice-items-detail').forEach(box=>{
     const rows=[...box.querySelectorAll('.saved-item')];
     if(!rows.length)return;
-    const refs=rows.length;
-    let units=0,known=0;
-    rows.forEach(row=>{const q=qtyFromMeta(row.querySelector('.saved-item-meta')?.textContent||'');if(q!==null){units+=q;known++}});
     const title=box.querySelector('.invoice-items-detail-title');
-    if(title){
-      const unitText=known===refs?` · ${plural(units,'unidad','unidades')}`:'';
-      title.textContent=`🧾 ${plural(refs,'referencia','referencias')}${unitText}`;
-    }
+    if(title)title.textContent=`🧾 ${plural(rows.length,'referencia','referencias')}`;
   });
 }
 let queued=false;

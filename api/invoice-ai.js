@@ -32,7 +32,7 @@ module.exports = async function handler(req,res){
       return res.status(413).json({error:'El archivo es demasiado grande'});
 
     const prompt=`Lee este documento de compra de un negocio de hostelería en España. ANTES de extraer importes, clasifícalo correctamente. Devuelve SOLO JSON válido, sin markdown ni explicaciones, con exactamente esta estructura:
-{"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"items":[{"description":"texto","quantity":numero o null,"unit":"texto o null","unit_price":numero o null,"line_total":numero o null}]}.
+{"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"items":[{"description":"texto","box_count":numero o null,"quantity":numero o null,"unit":"texto o null","unit_price":numero o null,"line_total":numero o null}]}.
 
 CLASIFICACIÓN OBLIGATORIA:
 0) document_type debe ser exactamente uno de estos valores:
@@ -53,12 +53,13 @@ Reglas estrictas para la cabecera:
 Reglas estrictas para items:
 8) Incluye en items únicamente líneas reales de productos o servicios comprados/abonados. NO incluyas subtotal, base imponible, IVA, recargo, total, forma de pago, descuentos globales, vencimientos ni textos administrativos como si fueran productos.
 9) description debe conservar un nombre útil del producto tal como aparece en el documento, limpiando solo códigos internos que no aporten información.
-10) quantity es la cantidad. Si aparece peso (kg), litros, cajas, bandejas, unidades, etc., usa el número que representa la cantidad.
-11) unit debe ser una unidad corta y normalizada. Usa preferentemente exactamente una de estas formas: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Si el documento usa abreviaturas como C/CJ para caja, UD/U para unidad, GR para gramos o LT para litros, conviértelas a esas formas normalizadas. Si no se puede determinar, null.
-12) unit_price es el precio unitario ANTES de IVA cuando lo indique claramente. No inventes ni dividas line_total entre quantity si existe cualquier duda sobre descuentos, formatos o unidades.
-13) line_total es el importe neto de esa línea antes de IVA cuando figure claramente. Mantén importes negativos en abonos/devoluciones.
-14) Si una línea está poco clara, es mejor devolver null en sus campos numéricos que inventar.
-15) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].`;
+10) Si el documento tiene una columna separada CAJAS/CJ/C, extrae ese número en box_count. Si además tiene otra columna CANTIDAD, PESO o unidades, NO confundas ambas: box_count es cajas y quantity es la cantidad/peso/unidades de esa segunda columna.
+11) quantity es la cantidad real de la columna CANTIDAD/PESO/UD/KG/L, no el número de cajas cuando ambas columnas existen. Si solo existe una cantidad y claramente está expresada en cajas, usa quantity con unit="caja" y deja box_count en null para no duplicar el dato.
+12) unit debe ser una unidad corta y normalizada. Usa preferentemente exactamente una de estas formas: kg, g, l, ml, unidad, caja, bandeja, paquete, botella. Si el documento usa abreviaturas como C/CJ para caja, UD/U para unidad, K para kg, GR para gramos o LT para litros, conviértelas a esas formas normalizadas. Si no se puede determinar, null.
+13) unit_price es el precio unitario ANTES de IVA cuando lo indique claramente. CONSERVA todos los decimales que aparezcan impresos; no redondees a 2 decimales. No inventes ni dividas line_total entre quantity si existe cualquier duda sobre descuentos, formatos o unidades.
+14) line_total es el importe neto de esa línea antes de IVA cuando figure claramente. Mantén importes negativos en abonos/devoluciones.
+15) Si una línea está poco clara, es mejor devolver null en sus campos numéricos que inventar.
+16) No inventes datos. Usa punto decimal en números. Si no hay líneas identificables, devuelve items:[].`;
 
     const isPdf=type==='application/pdf'||dataUrl.startsWith('data:application/pdf');
     let text='';
@@ -171,7 +172,7 @@ Reglas estrictas para items:
       const map={
         c:'caja',cj:'caja',caj:'caja',caja:'caja',cajas:'caja',
         u:'unidad',ud:'unidad',uds:'unidad',un:'unidad',unidad:'unidad',unidades:'unidad',
-        kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',
+        kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',k:'kg',
         g:'g',gr:'g',grs:'g',gramo:'g',gramos:'g',
         l:'l',lt:'l',lts:'l',litro:'l',litros:'l',
         ml:'ml',
@@ -184,6 +185,7 @@ Reglas estrictas para items:
 
     const items=Array.isArray(inv.items)?inv.items.slice(0,100).map(x=>({
       description:String(x?.description||'').trim().slice(0,300),
+      box_count:n(x?.box_count),
       quantity:n(x?.quantity),
       unit:normalizeUnit(x?.unit),
       unit_price:n(x?.unit_price),
