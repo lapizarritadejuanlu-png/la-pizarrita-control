@@ -28,14 +28,29 @@ function qualityState(){
   const docType=document.getElementById('invDocType')?.value||'invoice';
   const base=qnum(document.getElementById('invBase')?.value);
   const total=qnum(document.getElementById('invTotal')?.value);
-  const target=docType==='ticket'?(total??base):(base??total);
-  const targetLabel=docType==='ticket'?'total':'base';
   const vals=[...preview.querySelectorAll('.ai-item-total')].map(x=>qnum(x.textContent)).filter(x=>x!==null);
   const toggle=document.getElementById('toggleDetectedItems');
   const savingProducts=toggle?toggle.textContent.trim().startsWith('No guardar'):true;
-  if(target===null||!vals.length)return{preview,docType,target,targetLabel,vals,sum:null,diff:null,ok:null,savingProducts,override:preview.dataset.qualityOverride==='1'};
-  const sum=vals.reduce((a,b)=>a+b,0),diff=Math.abs(sum-target),tol=Math.max(.05,Math.abs(target)*.01);
-  return{preview,docType,target,targetLabel,vals,sum,diff,ok:diff<=tol,tol,savingProducts,override:preview.dataset.qualityOverride==='1'};
+  const override=preview.dataset.qualityOverride==='1';
+  if(!vals.length)return{preview,docType,target:null,targetLabel:null,vals,sum:null,diff:null,ok:null,savingProducts,override};
+
+  const sum=vals.reduce((a,b)=>a+b,0);
+  const candidates=[];
+  if(base!==null)candidates.push({value:base,label:'base'});
+  if(total!==null)candidates.push({value:total,label:'total'});
+  if(!candidates.length)return{preview,docType,target:null,targetLabel:null,vals,sum,diff:null,ok:null,savingProducts,override};
+
+  const preferredLabel=docType==='ticket'?'total':'base';
+  candidates.sort((a,b)=>{
+    const da=Math.abs(sum-a.value),db=Math.abs(sum-b.value);
+    if(Math.abs(da-db)>0.000001)return da-db;
+    if(a.label===preferredLabel&&b.label!==preferredLabel)return-1;
+    if(b.label===preferredLabel&&a.label!==preferredLabel)return 1;
+    return 0;
+  });
+  const target=candidates[0].value,targetLabel=candidates[0].label;
+  const diff=Math.abs(sum-target),tol=Math.max(.05,Math.abs(target)*.01);
+  return{preview,docType,target,targetLabel,vals,sum,diff,ok:diff<=tol,tol,savingProducts,override};
 }
 function renderQuality(){
   addQualityStyles();
