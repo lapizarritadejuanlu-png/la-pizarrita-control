@@ -7,6 +7,9 @@
   .intel-box{padding:12px!important;min-width:0}
   .intel-value{font-size:1.08rem!important;line-height:1.15}
   .intel-sub{font-size:.72rem!important}
+  @media(max-width:700px){
+    #main{padding-bottom:calc(130px + env(safe-area-inset-bottom))!important}
+  }
   @media(max-width:390px){
     .intel-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
     .intel-box{padding:11px!important}
