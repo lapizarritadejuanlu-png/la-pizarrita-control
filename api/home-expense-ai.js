@@ -21,12 +21,12 @@ Reglas: amount es el TOTAL FINAL PAGADO, no la base imponible. items debe conten
       const {generateText}=await import('ai');
       const comma=dataUrl.indexOf(',');if(comma<0)return res.status(400).json({error:'PDF no válido'});
       const pdf=Buffer.from(dataUrl.slice(comma+1),'base64');
-      const r=await generateText({model:'google/gemini-2.5-flash-lite',messages:[{role:'user',content:[{type:'text',text:prompt},{type:'file',mediaType:'application/pdf',data:pdf,filename:'ticket.pdf'}]}],maxOutputTokens:1800,abortSignal:AbortSignal.timeout(75000)});
+      const r=await generateText({model:'google/gemini-2.5-flash-lite',messages:[{role:'user',content:[{type:'text',text:prompt},{type:'file',mediaType:'application/pdf',data:pdf,filename:'ticket.pdf'}]}],maxOutputTokens:1400,abortSignal:AbortSignal.timeout(50000)});
       raw=r.text||'';
     }else{
-      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),75000);
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),50000);
       try{
-        const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'alibaba/qwen3.5-flash',input:[{type:'message',role:'user',content:[{type:'input_text',text:prompt},{type:'input_image',image_url:dataUrl,detail:'high'}]}],max_output_tokens:1800})});
+        const r=await fetch('https://ai-gateway.vercel.sh/v1/responses',{method:'POST',signal:controller.signal,headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'google/gemini-2.5-flash-lite',input:[{type:'message',role:'user',content:[{type:'input_text',text:prompt},{type:'input_image',image_url:dataUrl,detail:'auto'}]}],max_output_tokens:1400})});
         const text=await r.text();let d={};try{d=JSON.parse(text)}catch{}
         if(!r.ok)return res.status(502).json({error:'No se pudo leer el ticket ahora mismo.'});
         if(typeof d.output_text==='string')raw=d.output_text;
@@ -37,7 +37,7 @@ Reglas: amount es el TOTAL FINAL PAGADO, no la base imponible. items debe conten
     let x;try{x=JSON.parse(m[0])}catch{return res.status(502).json({error:'No se han podido interpretar los datos del ticket.'})}
     const num=v=>{if(v===null||v===undefined||v==='')return null;const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:null};
     const n=num(x.amount),date=/^\d{4}-\d{2}-\d{2}$/.test(String(x.date||''))?x.date:null,category=categories.includes(x.category)?x.category:'Otros';
-    const items=Array.isArray(x.items)?x.items.slice(0,80).map(i=>({name:String(i?.name||'').trim().slice(0,140),quantity:num(i?.quantity),unit_price:num(i?.unit_price),line_total:num(i?.line_total)})).filter(i=>i.name):[];
+    const items=Array.isArray(x.items)?x.items.slice(0,60).map(i=>({name:String(i?.name||'').trim().slice(0,140),quantity:num(i?.quantity),unit_price:num(i?.unit_price),line_total:num(i?.line_total)})).filter(i=>i.name):[];
     return res.status(200).json({expense:{date,concept:String(x.concept||'').trim().slice(0,120)||null,category,amount:n,items}});
   }catch(e){console.error('home-expense-ai',e?.name||'',e?.message||'');return res.status(502).json({error:'La IA ha tardado demasiado o no pudo leer el ticket. Inténtalo otra vez.'})}
 };
