@@ -1,0 +1,11 @@
+{
+  "name":"Casa y Familia · Control del hogar",
+  "short_name":"Casa y Familia",
+  "start_url":"/casa/",
+  "scope":"/casa/",
+  "display":"standalone",
+  "background_color":"#061326",
+  "theme_color":"#071a33",
+  "description":"Control sencillo de gastos de casa y familia",
+  "icons":[{"src":"/casa/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
