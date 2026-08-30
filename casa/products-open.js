@@ -1,0 +1,1 @@
+(()=>{const openProducts=()=>document.querySelectorAll('details.products').forEach(d=>{d.open=true});const observer=new MutationObserver(openProducts);observer.observe(document.documentElement,{childList:true,subtree:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',openProducts);else openProducts();})();
