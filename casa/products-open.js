@@ -1,5 +1,5 @@
 (()=>{
-const EXTRA=['Alquiler','Hipoteca','Luz','Agua','Gas','Internet/Teléfono','Comunidad'];
+const EXTRA=['Alquiler','Hipoteca','Luz','Agua','Gas','Internet/Teléfono','Comunidad','Impuestos'];
 let pendingCategory='';
 const openProducts=()=>document.querySelectorAll('details.products').forEach(d=>{d.open=true});
 function enhanceCategories(){
