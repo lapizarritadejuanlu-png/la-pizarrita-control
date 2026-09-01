@@ -45,6 +45,7 @@ saveInvoice=async function(){
     else if(docType==='delivery_note')toast(wasEdit?'Albarán actualizado · pendiente de factura':'Albarán guardado · pendiente de factura');
     else toast(wasEdit?`${label} actualizado en la nube`:`${label} guardado en la nube`);
     await loadData();
+    return invoiceId;
   }catch(e){
     if(newPath&&newPath!==editingFilePath)await deleteStorageFile(newPath).catch(()=>{});
     const msg=String(e?.message||'');
