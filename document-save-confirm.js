@@ -15,14 +15,22 @@ saveInvoice=async function(){
   const result=await previousConfirmedSaveInvoice.apply(this,arguments);
   if(wasEdit||!snapshot.date||!snapshot.supplier||snapshot.total===null)return result;
   try{
-    const recent=await api('/rest/v1/invoices?select=*&order=created_at.desc&limit=25');
-    const minTime=snapshot.startedAt-120000;
-    const match=(Array.isArray(recent)?recent:[]).find(x=>{
-      const created=Date.parse(x.created_at||'')||0;
-      return !x.deleted_at&&created>=minTime&&x.invoice_date===snapshot.date&&(x.document_type||'invoice')===snapshot.type&&dscNorm(x.supplier)===dscNorm(snapshot.supplier)&&Math.abs((Number(x.total)||0)-snapshot.total)<=0.01&&(!snapshot.number||dscNorm(x.invoice_number)===dscNorm(snapshot.number));
-    });
+    const savedId=typeof result==='string'?result:null;
+    let match=savedId&&Array.isArray(invoices)?invoices.find(x=>x.id===savedId&&!x.deleted_at):null;
+    if(!match&&savedId){
+      const rows=await api(`/rest/v1/invoices?id=eq.${encodeURIComponent(savedId)}&select=*`);
+      match=Array.isArray(rows)?rows.find(x=>x.id===savedId&&!x.deleted_at):null;
+    }
     if(!match){
-      toast(`⚠ ${snapshot.type==='ticket'?'El ticket':snapshot.type==='delivery_note'?'El albarán':'La factura'} no quedó confirmado en la nube. Vuelve a pulsar Guardar.`);
+      const recent=await api('/rest/v1/invoices?select=*&order=created_at.desc&limit=50');
+      const minTime=snapshot.startedAt-300000;
+      match=(Array.isArray(recent)?recent:[]).find(x=>{
+        const created=Date.parse(x.created_at||'')||0;
+        return !x.deleted_at&&created>=minTime&&x.invoice_date===snapshot.date&&(x.document_type||'invoice')===snapshot.type&&dscNorm(x.supplier)===dscNorm(snapshot.supplier)&&Math.abs((Number(x.total)||0)-snapshot.total)<=0.01&&(!snapshot.number||dscNorm(x.invoice_number)===dscNorm(snapshot.number));
+      });
+    }
+    if(!match){
+      toast(`⚠ No he podido verificar ${snapshot.type==='ticket'?'el ticket':snapshot.type==='delivery_note'?'el albarán':'la factura'} en la nube. Revisa Documentos antes de volver a guardar.`);
       return result;
     }
     if(!Array.isArray(invoices))invoices=[];
