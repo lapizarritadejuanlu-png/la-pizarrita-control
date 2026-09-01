@@ -36,11 +36,16 @@ function qualityState(){
 
   const sum=vals.reduce((a,b)=>a+b,0);
   const candidates=[];
-  if(base!==null)candidates.push({value:base,label:'base'});
-  if(total!==null)candidates.push({value:total,label:'total'});
+  if(docType==='delivery_note'){
+    if(total!==null)candidates.push({value:total,label:'total'});
+    else if(base!==null)candidates.push({value:base,label:'base'});
+  }else{
+    if(base!==null)candidates.push({value:base,label:'base'});
+    if(total!==null)candidates.push({value:total,label:'total'});
+  }
   if(!candidates.length)return{preview,docType,target:null,targetLabel:null,vals,sum,diff:null,ok:null,savingProducts,override};
 
-  const preferredLabel=docType==='ticket'?'total':'base';
+  const preferredLabel=(docType==='ticket'||docType==='delivery_note')?'total':'base';
   candidates.sort((a,b)=>{
     const da=Math.abs(sum-a.value),db=Math.abs(sum-b.value);
     if(Math.abs(da-db)>0.000001)return da-db;
@@ -58,7 +63,13 @@ function renderQuality(){
   st.preview.querySelector('.invoice-quality')?.remove();
   const box=document.createElement('div');box.className='invoice-quality';
   const label=st.targetLabel==='total'?'total':'base';
-  if(st.ok===null){box.classList.add('neutral');box.textContent='ℹ️ No se puede comprobar el cuadre porque falta el importe de referencia o el total de las líneas.'}
+  if(st.docType==='delivery_note'){
+    box.classList.add(st.ok===true?'ok':'neutral');
+    if(st.ok===null)box.textContent='ℹ️ Albarán: se guardarán las líneas como referencia, pero no pasarán a Productos como precio definitivo hasta que llegue la factura.';
+    else if(st.ok)box.textContent=`✓ Albarán: las líneas cuadran con el ${label} (${euro(st.sum)}). Se guardarán como referencia pendiente de factura.`;
+    else box.textContent=`ℹ️ Albarán: las líneas suman ${euro(st.sum)} y el ${label} indica ${euro(st.target)}. Puedes guardarlo: quedará pendiente de factura y estos precios no serán definitivos.`;
+  }
+  else if(st.ok===null){box.classList.add('neutral');box.textContent='ℹ️ No se puede comprobar el cuadre porque falta el importe de referencia o el total de las líneas.'}
   else if(st.ok){box.classList.add('ok');box.textContent=`✓ Productos cuadran con el ${label}: ${euro(st.sum)}`}
   else if(!st.savingProducts){box.classList.add('neutral');box.textContent=`ℹ️ Productos: ${euro(st.sum)} · ${label[0].toUpperCase()+label.slice(1)}: ${euro(st.target)}. Has elegido no guardar los productos.`}
   else if(st.override){box.classList.add('warn');box.innerHTML=`⚠ Diferencia aceptada manualmente · Productos ${euro(st.sum)} · ${label[0].toUpperCase()+label.slice(1)} ${euro(st.target)} · Diferencia ${euro(st.diff)}.`}
@@ -81,7 +92,7 @@ readInvoiceAI=async function(){
 const previousSaveInvoiceQuality=saveInvoice;
 saveInvoice=async function(){
   const st=qualityState();
-  if(st&&st.ok===false&&st.savingProducts&&!st.override){
+  if(st&&st.docType!=='delivery_note'&&st.ok===false&&st.savingProducts&&!st.override){
     renderQuality();
     st.preview.scrollIntoView({behavior:'smooth',block:'center'});
     toast('Revisa el cuadre de productos antes de guardar.');
