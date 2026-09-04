@@ -30,7 +30,10 @@ function mlbBusinessSnapshot(month){
   const docs=(Array.isArray(invoices)?invoices:[]).filter(x=>mlbMonth(x.invoice_date)===month&&!x.deleted_at);
   const accounting=docs.filter(x=>typeof window.isAccountingDocument==='function'?window.isAccountingDocument(x):((x.document_type||'invoice')!=='delivery_note'&&x.document_status!=='linked'));
   const purchases=accounting.reduce((a,x)=>a+(Number(x.total)||0),0);
+  const personalCash=window.personnelCashForMonth?.(month);
+  if(personalCash===null||personalCash===undefined)throw new Error('No se han cargado los pagos de nóminas. Actualiza antes de cerrar el mes.');
   return {
+    personnel_cash_total:personalCash,
     sales_total:sales,
     purchases_total:purchases,
     personal_total:personal,
@@ -39,7 +42,7 @@ function mlbBusinessSnapshot(month){
     tax_load_total:taxLoad,
     investment_total:investment,
     result_estimate:sales-purchases-personal-operating-taxLoad,
-    cash_out_total:purchases+personal+operating+taxCash+investment
+    cash_out_total:purchases+personalCash+operating+taxCash+investment
   };
 }
 function mlbFriendlyLockedError(){return new Error('🔒 Ese mes está cerrado. Reábrelo antes de modificar datos.')}

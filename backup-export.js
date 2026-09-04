@@ -5,7 +5,7 @@ async function fetchBackupTable(path){try{const x=await api(path);return Array.i
 async function exportFullBackup(){
   try{
     setBusy(true);
-    const [docs,items,prices,mv,rules,runs,workers,audit,locks,closeHistory]=await Promise.all([
+    const [docs,items,prices,mv,rules,runs,workers,audit,locks,closeHistory,payments]=await Promise.all([
       fetchBackupTable('/rest/v1/invoices?select=*&order=invoice_date.asc,created_at.asc'),
       fetchBackupTable('/rest/v1/invoice_items?select=*&order=created_at.asc'),
       fetchBackupTable('/rest/v1/products?select=*&order=price_date.asc,created_at.asc'),
@@ -15,9 +15,10 @@ async function exportFullBackup(){
       fetchBackupTable('/rest/v1/payroll_items?select=*&order=created_at.asc'),
       fetchBackupTable('/rest/v1/document_audit?select=*&order=created_at.asc'),
       fetchBackupTable('/rest/v1/accounting_month_locks?select=*&order=month.asc'),
-      fetchBackupTable('/rest/v1/accounting_month_close_history?select=*&order=created_at.asc')
+      fetchBackupTable('/rest/v1/accounting_month_close_history?select=*&order=created_at.asc'),
+      api('/rest/v1/payroll_payments?select=*&order=paid_on.asc')
     ]);
-    const backup={format:'la-pizarrita-control-backup',version:1,exported_at:new Date().toISOString(),project:'La Pizarrita Control',counts:{documents:docs.length,invoice_items:items.length,products:prices.length,moves:mv.length,expense_rules:rules.length,payroll_runs:runs.length,payroll_items:workers.length,document_audit:audit.length,active_month_locks:locks.length,month_close_history:closeHistory.length},data:{invoices:docs,invoice_items:items,products:prices,moves:mv,expense_rules:rules,payroll_runs:runs,payroll_items:workers,document_audit:audit,accounting_month_locks:locks,accounting_month_close_history:closeHistory}};
+    const backup={format:'la-pizarrita-control-backup',version:1,exported_at:new Date().toISOString(),project:'La Pizarrita Control',counts:{documents:docs.length,invoice_items:items.length,products:prices.length,moves:mv.length,expense_rules:rules.length,payroll_runs:runs.length,payroll_items:workers.length,document_audit:audit.length,active_month_locks:locks.length,month_close_history:closeHistory.length},data:{payroll_payments:payments,invoices:docs,invoice_items:items,products:prices,moves:mv,expense_rules:rules,payroll_runs:runs,payroll_items:workers,document_audit:audit,accounting_month_locks:locks,accounting_month_close_history:closeHistory}};
     const text=JSON.stringify(backup,null,2),blob=new Blob([text],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`la-pizarrita-backup-${localDate()}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);toast(`Copia creada · ${docs.length} documentos · ${mv.length} movimientos`);
   }catch(e){toast('No se pudo crear la copia: '+(e?.message||'error'))}finally{setBusy(false)}
 }
