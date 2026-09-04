@@ -9,7 +9,7 @@ async function saveExpenseAtomicFromForm(){
   const file=document.getElementById('expenseFile')?.files?.[0]||null;let filePath=null;
   try{
     expenseAtomicBusy=true;setBusy(true);
-    if(file)filePath=await uploadExpenseFile(file);
+    if(file)filePath=await uploadInvoiceFile(file);
     await api('/rest/v1/rpc/save_expense_atomic',{method:'POST',body:{
       p_category:category||'otros',p_move_date:date,p_concept:concept,p_amount:amount,
       p_expense_kind:kind||'operating',p_recurrence:recurrence||'oneoff',
