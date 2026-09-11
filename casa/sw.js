@@ -1,4 +1,4 @@
-const CACHE='casa-familia-v3';
+const CACHE='casa-familia-v4';
 const CORE=['/casa/','/casa/manifest.json','/casa/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil((async()=>{
