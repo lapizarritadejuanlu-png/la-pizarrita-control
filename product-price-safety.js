@@ -1,6 +1,29 @@
 (()=>{
 function psText(s=''){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim()}
 function psUnit(u=''){return typeof window.canonicalProductUnit==='function'?window.canonicalProductUnit(u):psText(u)||'sin especificar'}
+
+// Cinturón de seguridad: si la IA asigna el mismo nombre a dos líneas con
+// unidades distintas dentro del mismo documento, guardamos las líneas en el
+// documento pero NO las convertimos automáticamente en precios de Productos.
+// Es preferible pedir revisión a crear una falsa subida/bajada.
+const psPreviousApi=api;
+api=async function(path,options={}){
+  const method=String(options?.method||'GET').toUpperCase();
+  if(path==='/rest/v1/products'&&method==='POST'&&Array.isArray(options?.body)){
+    const rows=options.body,unitsByName=new Map();
+    for(const r of rows){const k=psText(r?.name);if(!k)continue;if(!unitsByName.has(k))unitsByName.set(k,new Set());unitsByName.get(k).add(psUnit(r?.unit))}
+    const ambiguous=new Set([...unitsByName.entries()].filter(([,units])=>units.size>1).map(([name])=>name));
+    if(ambiguous.size){
+      const clean=rows.filter(r=>!ambiguous.has(psText(r?.name)));
+      const removed=rows.length-clean.length;
+      if(removed)toast(`⚠ ${removed} precio${removed===1?'':'s'} dudoso${removed===1?'':'s'} no se ha${removed===1?'':'n'} añadido a Productos. Revisa las líneas del documento.`);
+      if(!clean.length)return[];
+      options={...options,body:clean};
+    }
+  }
+  return psPreviousApi(path,options);
+};
+
 function psGroups(){
   const map=new Map();
   for(const p of Array.isArray(products)?products:[]){
