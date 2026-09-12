@@ -53,10 +53,23 @@ function typeMatches(row){
 }
 function searchText(value){return String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[_/]+/g,' ').replace(/\s+/g,' ').trim()}
 function matchesSearch(text,query){const haystack=searchText(text);return searchText(query).split(' ').filter(Boolean).every(word=>haystack.includes(word))}
+function parseAmountQuery(query){
+  let raw=String(query??'').trim().replace(/\s/g,'').replace(/€/g,'');
+  if(!raw||!/^-?[\d.,]+$/.test(raw))return null;
+  if(raw.includes(',')&&raw.includes('.')){
+    raw=raw.lastIndexOf(',')>raw.lastIndexOf('.')?raw.replace(/\./g,'').replace(',','.'):raw.replace(/,/g,'');
+  }else if(raw.includes(',')){
+    raw=raw.replace(/\./g,'').replace(',','.');
+  }else if((raw.match(/\./g)||[]).length>1){
+    raw=raw.replace(/\./g,'');
+  }
+  const n=Number(raw);return Number.isFinite(n)?n:null;
+}
+function amountMatches(value,query){const q=parseAmountQuery(query),n=Number(value);return q!==null&&Number.isFinite(n)&&Math.abs(n-q)<0.005}
 function expenseSearchRows(){return (Array.isArray(moves)?moves:[]).filter(x=>x.move_type==='gasto'&&!x.deleted_at)}
 function renderExpenseSearch(){
   const holder=document.getElementById('expenseSearchResults');if(!holder)return;
-  const rows=expenseSearchRows().filter(x=>(invoiceFilterMonth==='all'||String(x.move_date||'').slice(0,7)===invoiceFilterMonth)&&matchesSearch([x.concept,x.notes,x.category,x.supplier,x.owner_label,x.period_label,x.expense_kind].join(' '),invoiceFilterText));
+  const rows=expenseSearchRows().filter(x=>(invoiceFilterMonth==='all'||String(x.move_date||'').slice(0,7)===invoiceFilterMonth)&&(matchesSearch([x.concept,x.notes,x.category,x.supplier,x.owner_label,x.period_label,x.expense_kind].join(' '),invoiceFilterText)||amountMatches(x.amount,invoiceFilterText)));
   holder.hidden=!['all','expense'].includes(documentFilterType);
   holder.innerHTML=`<div class="section-title">Gastos registrados a mano</div><p class="hint">${rows.length} gasto${rows.length===1?'':'s'} · ${euro(rows.reduce((sum,x)=>sum+(Number(x.amount)||0),0))}</p>${rows.length?rows.map(x=>`<div class="row"><div><div class="row-title">${esc(x.concept||'Gasto')}</div><div class="row-meta">${fmtDate(x.move_date)} · ${esc(String(x.category||'Otros').replace(/_/g,' '))}</div>${x.notes?`<div class="row-meta">${esc(x.notes)}</div>`:''}${x.file_path?`<button type="button" class="secondary" data-search-expense-file="${esc(x.file_path)}">📎 Ver justificante</button>`:''}</div><div class="row-amount">${euro(x.amount)}</div></div>`).join(''):'<div class="empty">No hay gastos manuales con ese filtro.</div>'}`;
   holder.querySelectorAll('[data-search-expense-file]').forEach(b=>b.addEventListener('click',()=>openInvoiceFile(b.dataset.searchExpenseFile)));
@@ -70,7 +83,7 @@ invoicesView=function(){
 function applyDocumentFilters(){
   const rows=prepareDocumentRows();
   const q=invoiceFilterText;let count=0,total=0;
-  for(const row of rows){const text=(row.dataset.search||'').toLowerCase(),month=row.dataset.month||'';const show=matchesSearch(text,q)&&(invoiceFilterMonth==='all'||month===invoiceFilterMonth)&&typeMatches(row);row.style.display=show?'flex':'none';if(show){count++;total+=Number(row.dataset.total||0)}}
+  for(const row of rows){const text=(row.dataset.search||'').toLowerCase(),month=row.dataset.month||'';const show=(matchesSearch(text,q)||amountMatches(row.dataset.total,q))&&(invoiceFilterMonth==='all'||month===invoiceFilterMonth)&&typeMatches(row);row.style.display=show?'flex':'none';if(show){count++;total+=Number(row.dataset.total||0)}}
   const countEl=document.getElementById('invoiceCount'),totalEl=document.getElementById('invoiceVisibleTotal'),emptyEl=document.getElementById('invoiceNoResults');
   renderExpenseSearch();
   if(countEl)countEl.textContent=`${count} documento${count===1?'':'s'}`;
@@ -87,7 +100,7 @@ function injectDocumentUi(){
   renameDashboardDocuments();
   if(route!=='invoices')return;
   const title=document.querySelector('#main > h2');if(title)title.textContent='Documentos';
-  const search=document.getElementById('invoiceSearch');if(search)search.placeholder='Buscar: luz, agua, hipoteca…';
+  const search=document.getElementById('invoiceSearch');if(search)search.placeholder='Buscar proveedor, factura o importe…';
   const grid=document.querySelector('.invoice-tools-grid');
   if(grid){grid.classList.add('document-tools-grid');let sel=document.getElementById('documentTypeFilter');if(!sel){sel=document.createElement('select');sel.id='documentTypeFilter';sel.innerHTML='<option value="all">Documentos y gastos</option><option value="expense">Gastos manuales</option><option value="invoice">📄 Facturas</option><option value="ticket">🧾 Tickets</option><option value="delivery_note">📦 Albaranes</option><option value="pending">⏳ Pendientes</option><option value="review">⚠ Revisar</option><option value="linked">✓ Sustituidos / facturados</option>';grid.appendChild(sel)}sel.value=documentFilterType;sel.addEventListener('change',e=>{documentFilterType=e.target.value;applyDocumentFilters()})}
   const month=document.getElementById('invoiceMonth');
