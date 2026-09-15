@@ -4,6 +4,7 @@ function canonicalSupplierName(value=''){
   const key=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ');
   if(key.includes('maheso')) return 'Maheso GEDESCO, S.A.';
   if(key.includes('transgourmet')) return 'Transgourmet Iberica S.A.U.';
+  if(key.includes('assolim')||key.includes('lassolim')||key.includes('asolim')) return 'Assolim foodservices';
   return raw;
 }
 function normalizeSupplierField(){
