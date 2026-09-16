@@ -26,4 +26,12 @@ saveInvoice=async function(){
   normalizeSupplierField();
   return oldSaveSupplier.apply(this,arguments);
 };
+function loadMakroCompat(){
+  if(document.querySelector('script[data-makro-history-compat]'))return;
+  const s=document.createElement('script');
+  s.src='/makro-history-compat.js?v=1';
+  s.dataset.makroHistoryCompat='1';
+  document.head.appendChild(s);
+}
+if(document.readyState==='complete')loadMakroCompat();else window.addEventListener('load',loadMakroCompat,{once:true});
 })();
