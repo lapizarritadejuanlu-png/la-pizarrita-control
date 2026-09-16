@@ -7,7 +7,7 @@ function addPriceAlertStyles(){
   s.id='invoicePriceAlertStyle';
   s.textContent=`
   .ai-price-change{margin-top:6px;font-size:.75rem;font-weight:900;line-height:1.35}
-  .ai-price-change.up{color:#ff9a91}.ai-price-change.down{color:#7bd79a}.ai-price-change.same{color:#b9b5ad}.ai-price-change.new{color:#d9b86e}
+  .ai-price-change.up{color:#ff9a91}.ai-price-change.down{color:#7bd79a}.ai-price-change.same{color:#b9b5ad}.ai-price-change.new{color:#d9b86e}.ai-price-change.review{color:#e5c374}
   .ai-price-summary{margin:10px 0 0;padding:10px 12px;border:1px solid #3a3c35;border-radius:11px;background:#151613;font-size:.78rem;line-height:1.4;color:#b8b4ac}
   .ai-price-summary strong{color:var(--text)}
   `;
@@ -62,6 +62,15 @@ function priceChangeText(line,prev){
   const pct=((now-before)/before)*100,abs=Math.abs(pct);
   const pctText=abs.toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
   const prevText=euro(before),date=prev.price_date?fmtDate(prev.price_date):'',supplier=prev.supplier?` · ${prev.supplier}`:'';
+
+  // Seguridad: una variación grande expresada solo como "unidad" suele venir de
+  // peso variable, cajas/bolsas o una lectura histórica mal normalizada. No la
+  // presentamos como subida/bajada real hasta que exista una unidad comparable.
+  const genericUnit=['unidad','sin especificar',''].includes(paUnit(line.unit));
+  if(genericUnit&&abs>=20){
+    return{kind:'review',text:`⚠ Revisar comparación · cambio de ${pctText}% con unidad genérica · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
+  }
+
   if(abs<0.5)return{kind:'same',text:`= Sin cambio relevante · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
   if(pct>0)return{kind:'up',text:`▲ +${pctText}% · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
   return{kind:'down',text:`▼ -${pctText}% · antes ${prevText}${date?` · ${date}`:''}${supplier}`};
@@ -70,16 +79,16 @@ function decoratePriceAlerts(){
   addPriceAlertStyles();
   const preview=document.getElementById('aiItemsPreview');if(!preview||preview.style.display==='none')return;
   preview.querySelectorAll('.ai-price-change,.ai-price-summary').forEach(x=>x.remove());
-  const rows=[...preview.querySelectorAll('.ai-item')];let up=0,down=0,same=0,fresh=0;
+  const rows=[...preview.querySelectorAll('.ai-item')];let up=0,down=0,same=0,fresh=0,review=0;
   rows.forEach(row=>{
     const line=currentLineData(row),prev=previousFor(line),change=priceChangeText(line,prev);
-    if(change.kind==='up')up++;else if(change.kind==='down')down++;else if(change.kind==='same')same++;else fresh++;
+    if(change.kind==='up')up++;else if(change.kind==='down')down++;else if(change.kind==='same')same++;else if(change.kind==='review')review++;else fresh++;
     const el=document.createElement('div');el.className=`ai-price-change ${change.kind}`;el.textContent=change.text;
     row.querySelector('.ai-item-main')?.appendChild(el);
   });
   if(rows.length){
     const box=document.createElement('div');box.className='ai-price-summary';
-    box.innerHTML=`Comparación con historial: <strong>${up} subida${up===1?'':'s'}</strong> · <strong>${down} bajada${down===1?'':'s'}</strong> · ${same} sin cambio · ${fresh} nueva${fresh===1?'':'s'} referencia${fresh===1?'':'s'}.`;
+    box.innerHTML=`Comparación con historial: <strong>${up} subida${up===1?'':'s'}</strong> · <strong>${down} bajada${down===1?'':'s'}</strong> · ${same} sin cambio · ${fresh} nueva${fresh===1?'':'s'} referencia${fresh===1?'':'s'}${review?` · <strong>⚠ ${review} por revisar</strong>`:''}.`;
     const quality=preview.querySelector('.invoice-quality');
     if(quality)quality.insertAdjacentElement('beforebegin',box);else preview.appendChild(box);
   }
