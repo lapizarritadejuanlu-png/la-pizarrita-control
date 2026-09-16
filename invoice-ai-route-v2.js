@@ -24,27 +24,68 @@
     }catch{}
     return[];
   };
+  const packageWeightKg=name=>{
+    const s=String(name||'').toUpperCase().replace(/,/g,'.');
+    const patterns=[
+      /(\d+(?:\.\d+)?)\s*(?:BL|BLS|BOLSAS?|B|UDS?|UNIDADES?|PAQ|PAQS|PAQUETES?)?\s*[X*×]\s*(\d+(?:\.\d+)?)\s*(KG|KGS|G|GR|GRS)\b/,
+      /\((\d+(?:\.\d+)?)\s*(?:BL|BLS|BOLSAS?)\s*[X*×]\s*(\d+(?:\.\d+)?)\s*(KG|KGS|G|GR|GRS)\)/
+    ];
+    for(const re of patterns){
+      const m=s.match(re);if(!m)continue;
+      const a=Number(m[1]),b=Number(m[2]),u=String(m[3]).toUpperCase();
+      if(!Number.isFinite(a)||!Number.isFinite(b)||a<=0||b<=0)continue;
+      return a*(u.startsWith('G')?b/1000:b);
+    }
+    return null;
+  };
+  const reconcilePackageMeasures=item=>{
+    const q=Number(item.quantity),lt=Number(item.line_total),up=Number(item.unit_price),unit=normUnit(item.unit);
+    if(!Number.isFinite(q)||q<=0||!Number.isFinite(lt)||lt<=0||!['caja','pack','paquete'].includes(unit))return item;
+    const kg=packageWeightKg(item.description);
+    if(Number.isFinite(kg)&&kg>0){
+      const boxes=q/kg,rounded=Math.round(boxes);
+      if(rounded>=1&&rounded<=100&&Math.abs(boxes-rounded)<=Math.max(.04,rounded*.04)){
+        item.quantity=rounded;
+        item.unit=unit;
+        item.unit_price=Number((lt/rounded).toFixed(6));
+        return item;
+      }
+    }
+    if(Number.isFinite(up)&&up>0&&Math.abs(q-Math.round(q))>0.05){
+      const rounded=Math.round(q);
+      if(rounded>=1&&Math.abs(q-rounded)<=0.02){
+        item.quantity=rounded;
+        item.unit_price=Number((lt/rounded).toFixed(6));
+      }
+    }
+    return item;
+  };
   const reconcileKnownReferences=data=>{
     try{
       const inv=data&&data.invoice;
       if(!inv||!Array.isArray(inv.items)||!inv.items.length)return data;
       const history=historyRows();
-      if(!history.length)return data;
       const sk=supplierKey(inv.supplier);
       inv.items=inv.items.map(raw=>{
-        const item={...raw};
+        const item=reconcilePackageMeasures({...raw});
         const nk=normText(item.description);
-        if(!nk)return item;
+        if(!nk||!history.length)return item;
         const matches=history.filter(p=>p&&normText(p.name)===nk&&supplierKey(p.supplier)===sk&&Number(p.price)>0);
         if(!matches.length)return item;
         matches.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));
         const prev=matches[0],oldUnit=normUnit(prev.unit),newUnit=normUnit(item.unit);
-        const oldPrice=Number(prev.price),newPrice=Number(item.unit_price);
+        const oldPrice=Number(prev.price),newPrice=Number(item.unit_price),lineTotal=Number(item.line_total);
+        if(['caja','pack','paquete'].includes(oldUnit)&&Number.isFinite(lineTotal)&&lineTotal>0&&Number.isFinite(oldPrice)&&oldPrice>0){
+          const estimated=lineTotal/oldPrice,boxes=Math.round(estimated);
+          if(boxes>=1&&boxes<=100&&Math.abs(estimated-boxes)<=Math.max(.12,boxes*.08)){
+            item.quantity=boxes;
+            item.unit=prev.unit;
+            item.unit_price=Number((lineTotal/boxes).toFixed(6));
+            return item;
+          }
+        }
         if(oldUnit&&oldUnit!=='sin especificar'&&newUnit!==oldUnit&&Number.isFinite(oldPrice)&&oldPrice>0&&Number.isFinite(newPrice)&&newPrice>0){
           const ratio=newPrice/oldPrice;
-          // Si el nombre y el proveedor son exactamente los mismos y el precio por
-          // referencia sigue en una escala comparable, un cambio kg/unidad/caja suele
-          // ser una lectura de IA, no un producto nuevo. Conservamos la unidad histórica.
           if(ratio>=0.5&&ratio<=1.5)item.unit=prev.unit;
         }
         return item;
