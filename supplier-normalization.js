@@ -4,6 +4,7 @@ function canonicalSupplierName(value=''){
   const key=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ');
   const compact=key.replace(/\s+/g,'');
   if(key.includes('maheso')) return 'Maheso GEDESCO, S.A.';
+  if(key.includes('makro')) return 'Makro';
   if(key.includes('transgourmet')||compact.includes('grossmercat')||compact.includes('grosmercat')||compact.includes('gmcash')||compact.includes('grosmercado')) return 'Transgourmet Iberica S.A.U.';
   if(key.includes('assolim')||key.includes('lassolim')||key.includes('asolim')) return 'Assolim foodservices';
   return raw;
