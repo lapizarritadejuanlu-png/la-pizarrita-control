@@ -25,6 +25,13 @@ REGLA CRÍTICA DE LÍNEAS:
 - Si no puedes asociar con seguridad descripción y precio de la misma línea, usa null en el precio dudoso antes que inventar o mezclar líneas.
 - Si el mismo nombre parece aparecer con kg y unidad en el mismo ticket, vuelve a revisar visualmente las líneas porque puede ser un desplazamiento de lectura.
 
+PEDIDO / SERVIDO / ENTREGADO — REGLA PRIORITARIA:
+- Si el documento tiene columnas PEDIDO y SERVIDO, quantity debe ser SIEMPRE la cantidad de SERVIDO. PEDIDO es solo lo solicitado y NO se usa para calcular el coste facturado.
+- Si aparecen PEDIDO y ENTREGADO, usa ENTREGADO. Si aparecen SOLICITADO y SERVIDO, usa SERVIDO.
+- La cantidad facturada debe ser la que realmente se suministra. Puede ser decimal por peso: por ejemplo SERVIDO 5,40 con precio 13,95 debe devolver quantity=5.40, unit_price=13.95 y line_total=75.33.
+- Otro ejemplo: PEDIDO 1,00, SERVIDO 3,20, precio 6,38 y total 20,42 debe devolver quantity=3.20, unit_price=6.38 y line_total=20.42.
+- Antes de devolver una línea con estas columnas verifica expresamente que SERVIDO × PRECIO = TOTAL de la línea, salvo redondeo normal.
+
 PACKS, CAJAS Y CONTENIDO DEL EMBALAJE — MUY IMPORTANTE:
 - quantity significa EXCLUSIVAMENTE cuántos packs, cajas, botellas, kilos o unidades COMERCIALES se han comprado en esa línea.
 - NUNCA uses como quantity el número de unidades que vienen DENTRO del embalaje descrito en el nombre del producto.
@@ -114,7 +121,9 @@ Si algo no se ve claro usa null. No inventes. Usa punto decimal.`;
         if(up===null){
           const derived=lt/q;if(Number.isFinite(derived))up=Number(derived.toFixed(6));
         }else if(!close(q*up,lt)){
-          up=null;
+          const derivedQ=up>0?lt/up:null;
+          if(Number.isFinite(derivedQ)&&derivedQ>0&&derivedQ<=10000)q=Number(derivedQ.toFixed(6));
+          else up=null;
         }
       }
 
