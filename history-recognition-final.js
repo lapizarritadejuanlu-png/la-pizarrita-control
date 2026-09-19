@@ -39,7 +39,9 @@
 
   function findPrevious(item,supplier){
     const sk=supplierKey(supplier),name=String(item?.description||''),nk=norm(name),price=Number(item?.unit_price),uk=unitKey(item?.unit);
+    const currentDate=String(document.getElementById('invDate')?.value||'');
     const candidates=history().map(p=>{
+      if(currentDate&&String(p?.price_date||'')>=currentDate)return null;
       if(!p||!(Number(p.price)>0)||supplierKey(p.supplier)!==sk)return null;
       const pn=norm(p.name),exact=nk===pn,sim=similarity(name,p.name||''),contains=(nk&&pn&&(nk.includes(pn)||pn.includes(nk))),measureOk=compatibleMeasure(name,p.name||''),sameUnit=uk===unitKey(p.unit),priceNear=near(price,p.price,.55);
       let valid=exact;
@@ -95,7 +97,7 @@
   }
 
   let timer=null;
-  const schedule=()=>{clearTimeout(timer);timer=setTimeout(decorate,40);setTimeout(decorate,220);setTimeout(decorate,800)};
+  const schedule=()=>{clearTimeout(timer);timer=setTimeout(decorate,40);setTimeout(decorate,220);setTimeout(decorate,800);setTimeout(decorate,1600);setTimeout(decorate,3000)};
   const prevRead=readInvoiceAI;
   readInvoiceAI=async function(){const r=await prevRead.apply(this,arguments);schedule();return r};
   const prevRender=renderItems;
