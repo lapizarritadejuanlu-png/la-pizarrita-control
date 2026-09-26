@@ -19,6 +19,8 @@
       <label>Email<input id="le" type="email" autocomplete="email" required></label>
       <label>Contraseña<input id="lp" type="password" autocomplete="current-password" minlength="6" required></label>
       <button class="btn primary">Entrar</button>
+      <button id="forgot" class="btn ghost" type="button">He olvidado mi contraseña</button>
+      <small class="muted">Si ya usabas Pizarrita ↔ Tempo, esta cuenta utiliza el mismo usuario.</small>
     </form>
     <form id="fSign" class="stack hide">
       <label>Tu nombre<input id="sn" required></label>
@@ -27,6 +29,19 @@
       <label>Código privado de tu negocio<input id="sc" autocapitalize="characters" required></label>
       <button class="btn primary">Crear acceso</button>
       <small class="muted">Cada negocio tiene un código diferente y se utiliza una sola vez.</small>
+    </form>
+  </div>
+</section>
+
+<section id="recovery" class="auth hide">
+  <div class="card">
+    <div class="logo">5<br>LOCALES</div>
+    <h1>Nueva contraseña</h1>
+    <p class="muted">Escribe una contraseña nueva para tu usuario.</p>
+    <form id="fRecovery" class="stack">
+      <label>Nueva contraseña<input id="rp" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>Repetir contraseña<input id="rp2" type="password" autocomplete="new-password" minlength="6" required></label>
+      <button class="btn primary">Guardar contraseña</button>
     </form>
   </div>
 </section>
@@ -102,7 +117,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/cuenta-cinco-a.js?v=1"></script>
+<script src="/cuenta-cinco-a.js?v=2"></script>
 <script src="/cuenta-cinco-b.js?v=1"></script>
 </body>
 </html>
