@@ -5,58 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827">
 <title>Cuenta común · 5 locales</title>
-<link rel="stylesheet" href="/cuenta-cinco.css?v=1">
+<link rel="stylesheet" href="/cuenta-cinco.css?v=2">
 </head>
 <body>
 <div id="toast" class="toast hide"></div>
+
 <section id="auth" class="auth">
   <div class="card">
     <div class="logo">5<br>LOCALES</div>
     <h1>Cuenta común</h1>
     <p class="muted">Capicúa · Pizarrita · Racó de la Plaça · Calenric · Tempo Divino</p>
     <div class="tabs"><button id="tLogin" class="tab on">Entrar</button><button id="tSign" class="tab">Primer acceso</button></div>
+
     <form id="fLogin" class="stack">
-      <label>Email<input id="le" type="email" autocomplete="email" required></label>
+      <label>Negocio<select id="lb"></select></label>
       <label>Contraseña<input id="lp" type="password" autocomplete="current-password" minlength="6" required></label>
       <button class="btn primary">Entrar</button>
-      <button id="forgot" class="btn ghost" type="button">He olvidado mi contraseña</button>
-      <small class="muted">Si ya usabas Pizarrita ↔ Tempo, esta cuenta utiliza el mismo usuario.</small>
+      <small class="muted">Este acceso es independiente de Pizarrita ↔ Tempo y de La Pizarrita Control.</small>
     </form>
+
     <form id="fSign" class="stack hide">
+      <label>Negocio<select id="sb"></select></label>
       <label>Tu nombre<input id="sn" required></label>
-      <label>Email<input id="se" type="email" autocomplete="email" required></label>
       <label>Contraseña<input id="sp" type="password" autocomplete="new-password" minlength="6" required></label>
-      <label>Código privado de tu negocio<input id="sc" autocapitalize="characters" required></label>
+      <label>Código privado del negocio<input id="sc" autocapitalize="characters" required></label>
       <button class="btn primary">Crear acceso</button>
-      <small class="muted">Cada negocio tiene un código diferente y se utiliza una sola vez.</small>
-    </form>
-  </div>
-</section>
-
-<section id="recovery" class="auth hide">
-  <div class="card">
-    <div class="logo">5<br>LOCALES</div>
-    <h1>Nueva contraseña</h1>
-    <p class="muted">Escribe una contraseña nueva para tu usuario.</p>
-    <form id="fRecovery" class="stack">
-      <label>Nueva contraseña<input id="rp" type="password" autocomplete="new-password" minlength="6" required></label>
-      <label>Repetir contraseña<input id="rp2" type="password" autocomplete="new-password" minlength="6" required></label>
-      <button class="btn primary">Guardar contraseña</button>
-    </form>
-  </div>
-</section>
-
-<section id="claim" class="auth hide">
-  <div class="card">
-    <div class="logo">5<br>LOCALES</div>
-    <h1>Vincular este usuario</h1>
-    <p class="muted">Tu email ya existe, pero todavía no está vinculado a uno de los cinco negocios.</p>
-    <div class="claim-note">Introduce el código privado correspondiente al negocio. Solo hace falta hacerlo una vez.</div>
-    <form id="fClaim" class="stack">
-      <label>Tu nombre<input id="cn" required></label>
-      <label>Código privado<input id="cc" autocapitalize="characters" required></label>
-      <button class="btn primary">Vincular acceso</button>
-      <button id="claimOut" class="btn ghost" type="button">Cerrar sesión</button>
+      <small class="muted">Cada negocio tiene un código distinto y solo puede crear un acceso.</small>
     </form>
   </div>
 </section>
@@ -88,7 +62,7 @@
     <form id="entry" class="form">
       <input id="eid" type="hidden"><input id="etype" type="hidden">
       <label>Fecha<input id="date" type="date" required></label>
-      <label id="payerLab">Quién pagó<select id="payer"></select></label>
+      <label>Quién pagó<select id="payer"></select></label>
       <label>Importe (€)<input id="amount" type="number" inputmode="decimal" step="0.01" min="0.01" required></label>
       <label id="receiverLab" class="hide">Quién recibe<select id="receiver"></select></label>
       <label id="supLab">Proveedor / sitio<input id="supplier"></label>
@@ -117,7 +91,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="/cuenta-cinco-a.js?v=2"></script>
-<script src="/cuenta-cinco-b.js?v=1"></script>
+<script src="/cuenta-cinco-a.js?v=3"></script>
+<script src="/cuenta-cinco-b.js?v=3"></script>
 </body>
 </html>
