@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Cuenta común · 5 locales</title>
+<link rel="stylesheet" href="/cuenta-cinco.css?v=1">
+</head>
+<body>
+<div id="toast" class="toast hide"></div>
+<section id="auth" class="auth">
+  <div class="card">
+    <div class="logo">5<br>LOCALES</div>
+    <h1>Cuenta común</h1>
+    <p class="muted">Capicúa · Pizarrita · Racó de la Plaça · Calenric · Tempo Divino</p>
+    <div class="tabs"><button id="tLogin" class="tab on">Entrar</button><button id="tSign" class="tab">Primer acceso</button></div>
+    <form id="fLogin" class="stack">
+      <label>Email<input id="le" type="email" autocomplete="email" required></label>
+      <label>Contraseña<input id="lp" type="password" autocomplete="current-password" minlength="6" required></label>
+      <button class="btn primary">Entrar</button>
+    </form>
+    <form id="fSign" class="stack hide">
+      <label>Tu nombre<input id="sn" required></label>
+      <label>Email<input id="se" type="email" autocomplete="email" required></label>
+      <label>Contraseña<input id="sp" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>Código privado de tu negocio<input id="sc" autocapitalize="characters" required></label>
+      <button class="btn primary">Crear acceso</button>
+      <small class="muted">Cada negocio tiene un código diferente y se utiliza una sola vez.</small>
+    </form>
+  </div>
+</section>
+
+<section id="claim" class="auth hide">
+  <div class="card">
+    <div class="logo">5<br>LOCALES</div>
+    <h1>Vincular este usuario</h1>
+    <p class="muted">Tu email ya existe, pero todavía no está vinculado a uno de los cinco negocios.</p>
+    <div class="claim-note">Introduce el código privado correspondiente al negocio. Solo hace falta hacerlo una vez.</div>
+    <form id="fClaim" class="stack">
+      <label>Tu nombre<input id="cn" required></label>
+      <label>Código privado<input id="cc" autocapitalize="characters" required></label>
+      <button class="btn primary">Vincular acceso</button>
+      <button id="claimOut" class="btn ghost" type="button">Cerrar sesión</button>
+    </form>
+  </div>
+</section>
+
+<main id="app" class="wrap hide">
+  <header class="top">
+    <div><div class="ey">CUENTA COMPARTIDA · 5 LOCALES</div><h1>Cuenta común</h1><div id="who" class="muted"></div></div>
+    <button id="out" class="btn ghost">Salir</button>
+  </header>
+
+  <section id="myBalance" class="card balance" style="margin-top:16px">
+    <div class="ey">TU SALDO ACTUAL</div>
+    <div id="bal" class="bal">0,00 €</div>
+    <b id="bsub">Cuenta al día</b>
+  </section>
+
+  <section class="card">
+    <div class="section-head"><h2>Estado de los cinco</h2><span class="pill">Suma = 0 €</span></div>
+    <div id="partyGrid" class="party-grid"></div>
+  </section>
+
+  <section class="actions">
+    <button id="buy" class="action"><b>＋ Nueva compra</b><small>Se reparte entre los negocios que marques</small></button>
+    <button id="pay" class="action"><b>€ Registrar pago</b><small>Un negocio paga a otro para ajustar saldos</small></button>
+  </section>
+
+  <section id="panel" class="card hide" style="margin-top:13px">
+    <div class="top"><h2 id="ptitle">Nueva compra</h2><button id="close" class="btn ghost" type="button">Cerrar</button></div>
+    <form id="entry" class="form">
+      <input id="eid" type="hidden"><input id="etype" type="hidden">
+      <label>Fecha<input id="date" type="date" required></label>
+      <label id="payerLab">Quién pagó<select id="payer"></select></label>
+      <label>Importe (€)<input id="amount" type="number" inputmode="decimal" step="0.01" min="0.01" required></label>
+      <label id="receiverLab" class="hide">Quién recibe<select id="receiver"></select></label>
+      <label id="supLab">Proveedor / sitio<input id="supplier"></label>
+      <label id="itemLab" class="wide">Artículo / descripción<input id="item"></label>
+      <div id="participantsLab" class="wide">
+        <label>Repartir el gasto entre</label>
+        <div id="participants" class="check-grid"></div>
+      </div>
+      <label class="wide">Observaciones<textarea id="notes" rows="2"></textarea></label>
+      <label id="fileLab" class="wide">Factura o ticket<input id="invoice" type="file" accept="image/*,application/pdf"></label>
+      <div id="prev" class="preview wide"></div>
+      <button id="save" class="btn primary wide">Guardar</button>
+    </form>
+  </section>
+
+  <section id="settleCard" class="card hide" style="margin-top:13px">
+    <div class="section-head"><h2>Pagos sugeridos</h2><span class="pill">Para dejarlo a cero</span></div>
+    <div id="settleList"></div>
+  </section>
+
+  <section class="card" style="margin-top:13px">
+    <div class="top"><h2>Historial</h2><button id="refresh" class="btn ghost">Actualizar</button></div>
+    <div class="filters"><input id="search" type="search" placeholder="Buscar artículo, proveedor o nota"><input id="month" type="month"></div>
+    <div id="list" class="list"></div><p id="empty" class="muted">Todavía no hay movimientos.</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/cuenta-cinco-a.js?v=1"></script>
+<script src="/cuenta-cinco-b.js?v=1"></script>
+</body>
+</html>
