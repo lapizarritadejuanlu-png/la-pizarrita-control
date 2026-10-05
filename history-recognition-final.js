@@ -106,3 +106,36 @@
   bind=function(){prevBind();schedule();document.getElementById('invSupplier')?.addEventListener('input',schedule)};
   window.refreshPurchaseHistoryRecognition=decorate;
 })();
+
+;(()=>{
+  if(window.__coreDataRecoveryInline)return;
+  window.__coreDataRecoveryInline=true;
+  let flight=null;
+  async function recover(){
+    if(flight||!session?.access_token)return flight||false;
+    flight=(async()=>{
+      const before=Array.isArray(invoices)?invoices.length:0;
+      try{
+        const ri=await api('/rest/v1/invoices?select=*&order=invoice_date.desc');
+        if(Array.isArray(ri)){
+          invoices=ri.filter(x=>!x?.deleted_at);
+          if(session)renderApp();
+          if(before===0&&invoices.length)toast('Historial recuperado de la nube');
+        }
+        return true;
+      }catch(e){
+        console.warn('Invoice history recovery',e?.message||'unknown');
+        return false;
+      }finally{flight=null}
+    })();
+    return flight;
+  }
+  const prev=loadData;
+  loadData=async function(){
+    const r=await prev.apply(this,arguments);
+    if(session&&Array.isArray(invoices)&&invoices.length===0)await recover();
+    return r;
+  };
+  setTimeout(()=>{if(session&&Array.isArray(invoices)&&invoices.length===0)recover()},1000);
+  setTimeout(()=>{if(session&&Array.isArray(invoices)&&invoices.length===0)recover()},3000);
+})();
