@@ -16,7 +16,7 @@ module.exports=async function handler(req,res){
     if(dataUrl.length>5_500_000)return res.status(413).json({error:'El archivo es demasiado grande'});
 
     const prompt=`Lee este documento de compra de hostelería en España y devuelve SOLO JSON válido, sin markdown.
-Formato: {"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"items":[{"description":"texto","box_count":numero o null,"quantity":numero o null,"unit":"texto o null","gross_unit_price":numero o null,"discount_percent":numero o null,"discount_amount":numero o null,"unit_price":numero o null,"line_total":numero o null}]}.
+Formato: {"document_type":"invoice|ticket|delivery_note","date":"YYYY-MM-DD o null","supplier":"texto o null","invoice_number":"texto o null","base_amount":numero o null,"vat_amount":numero o null,"total":numero o null,"related_document_numbers":["texto"],"tax_breakdown":[{"base":numero,"rate":numero,"vat":numero}],"items":[{"description":"texto","box_count":numero o null,"quantity":numero o null,"unit":"texto o null","gross_unit_price":numero o null,"discount_percent":numero o null,"discount_amount":numero o null,"unit_price":numero o null,"line_total":numero o null}]}.
 
 REGLA CRÍTICA DE LÍNEAS:
 - Cada item debe salir de UNA SOLA LÍNEA FÍSICA del documento. Descripción, cantidad, unidad, precio y total deben pertenecer a esa misma línea.
@@ -42,6 +42,15 @@ PACKS, CAJAS Y CONTENIDO DEL EMBALAJE — MUY IMPORTANTE:
 - Para refrescos, cerveza, agua y otros productos en cajas/retráctiles, revisa expresamente que la cantidad comprada no sea el número de latas/botellas que contiene la caja.
 
 Reglas generales: identifica factura/ticket/albarán; usa fecha de emisión y número principal; base_amount es base imponible, vat_amount solo IVA y total el total final. Extrae solo líneas reales de productos/servicios. Si existen columnas CAJAS y CANTIDAD, box_count sale de CAJAS y quantity de CANTIDAD. No deduzcas cantidades por textos de embalaje. Normaliza unidades a kg,g,l,ml,unidad,caja,pack,bandeja,paquete,botella.
+
+IMPUESTOS DE LA FACTURA — LECTURA Y SUMA OBLIGATORIA:
+- Antes de rellenar base_amount y vat_amount, busca el RESUMEN DE IMPUESTOS en TODA la factura, habitualmente al pie. Lee CADA FILA de las columnas B.I./BASE IMPONIBLE, % IVA y IMPORTE IVA, incluso si están debajo de la primera fila o tienen letras o códigos distintos entre paréntesis.
+- Puede haber varias bases con el MISMO porcentaje de IVA (p. ej. 10%(A) y 10%(D)); se deben SUMAR todas por separado. No leas solo la primera fila de la tabla.
+- tax_breakdown debe contener una entrada POR CADA FILA fiscal visible: base, rate (porcentaje 4/10/21 etc.) y vat (cuota). No mezcles la columna IMP./IMPORTE de artículos con la base imponible.
+- base_amount = suma de TODAS las bases del cuadro fiscal; vat_amount = suma de TODAS las cuotas de IVA del cuadro fiscal, redondeadas a céntimos.
+- Ejemplo de TRES filas: B.I. 198,02 IVA 10% cuota 19,80; B.I. 48,55 IVA 10% cuota 4,86; B.I. 11,61 IVA 4% cuota 0,46. En ese caso tax_breakdown contiene TRES objetos; base_amount = 258,18; vat_amount = 25,12; total = 283,30. No contestes base_amount=198,02 ni vat_amount=19,80.
+- Comprueba dos veces: la suma de líneas de producto normalmente corresponde con base_amount; total normalmente corresponde con base_amount + vat_amount. Si hay un descuadre, revisa todas las filas del cuadro de IVA, incluidos tipos repetidos, ANTES de devolver el JSON.
+- No inventes tipos de IVA, cuotas, cargos adicionales ni bases ausentes. Si no hay cuadro fiscal legible, devuelve tax_breakdown=[] y usa null en los importes imposibles de identificar.
 
 DESCUENTOS Y PROMOCIONES — MUY IMPORTANTE:
 - El precio que interesa para Productos es SIEMPRE el coste neto realmente pagado antes de IVA, después de descuentos, promociones, bonificaciones o rappels de esa línea.
@@ -130,8 +139,28 @@ Si algo no se ve claro usa null. No inventes. Usa punto decimal.`;
       return{description,box_count:num(i?.box_count),quantity:q,unit,unit_price:up,line_total:lt};
     }).filter(i=>i.description):[];
 
+    // El modelo puede leer bien cada fila de IVA y equivocarse al sumar los totales.
+    // Recalculamos SOLO cuando el desglose leído cuadra con el total impreso
+    // y no contradice los importes de las líneas de productos.
+    const taxRows=Array.isArray(x.tax_breakdown)?x.tax_breakdown.slice(0,30).map(row=>({
+      base:num(row?.base),rate:num(row?.rate),vat:num(row?.vat)
+    })):[];
+    const round2=value=>Math.round((value+Number.EPSILON)*100)/100;
+    const finalTotal=num(x.total);
+    let finalBase=num(x.base_amount),finalVat=num(x.vat_amount);
+    const hasAllTaxAmounts=taxRows.length>0&&taxRows.every(row=>row.base!==null&&row.vat!==null);
+    if(hasAllTaxAmounts){
+      const sumBase=round2(taxRows.reduce((sum,row)=>sum+row.base,0));
+      const sumVat=round2(taxRows.reduce((sum,row)=>sum+row.vat,0));
+      const allItemsHaveTotal=items.length>0&&items.every(item=>item.line_total!==null);
+      const sumItems=allItemsHaveTotal?round2(items.reduce((sum,item)=>sum+item.line_total,0)):null;
+      const matchesInvoice=finalTotal!==null&&Math.abs(round2(sumBase+sumVat)-finalTotal)<=.03;
+      const matchesItems=sumItems===null||Math.abs(sumItems-sumBase)<=.06;
+      if(matchesInvoice&&matchesItems){finalBase=sumBase;finalVat=sumVat}
+    }
+
     const documentType=['invoice','ticket','delivery_note'].includes(x.document_type)?x.document_type:'invoice';
     const related=Array.isArray(x.related_document_numbers)?x.related_document_numbers.map(v=>String(v||'').trim().slice(0,100)).filter(Boolean).slice(0,30):[];
-    return res.status(200).json({invoice:{document_type:documentType,date:normDate(x.date),supplier:x.supplier||null,invoice_number:x.invoice_number||null,base_amount:num(x.base_amount),vat_amount:num(x.vat_amount),total:num(x.total),related_document_numbers:related,items}});
+    return res.status(200).json({invoice:{document_type:documentType,date:normDate(x.date),supplier:x.supplier||null,invoice_number:x.invoice_number||null,base_amount:finalBase,vat_amount:finalVat,total:finalTotal,tax_breakdown:taxRows.filter(row=>row.base!==null&&row.vat!==null),related_document_numbers:related,items}});
   }catch(e){console.error('Invoice AI v5',e?.name||'',e?.message||'');return res.status(502).json({code:'AI_SERVICE_ERROR',error:'La IA ha tardado demasiado o no pudo leer la imagen. Inténtalo otra vez.'})}
 };
