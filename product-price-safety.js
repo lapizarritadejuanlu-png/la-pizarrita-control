@@ -19,23 +19,33 @@ api=async function(path,options={}){
       options={...options,body:clean};
     }
   }
+  // No contaminar el historial con importes que parecen el total
+  // de 2, 3... cajas, barriles o paquetes convertido en precio unitario.
+  if(path==='/rest/v1/products'&&method==='POST'&&Array.isArray(options?.body)){
+    const history=Array.isArray(products)?products:[];
+    let blocked=0;
+    const safe=options.body.filter(row=>{
+      const price=Number(row?.price),name=normProductKey(row?.name),supplier=normProductSupplier(row?.supplier);
+      if(!(price>0)||!name||!supplier)return true;
+      const unit=normProductUnit(row?.unit);
+      const suspects=history.filter(p=>p.source_invoice_id&&normProductKey(p.name)===name&&normProductSupplier(p.supplier)===supplier&&
+        (normProductUnit(p.unit)===unit||unit==='sin especificar'||normProductUnit(p.unit)==='sin especificar')&&
+        (!row.price_date||!p.price_date||p.price_date<=row.price_date)&&productRatioWarning(p.price,price));
+      if(!suspects.length)return true;
+      blocked++;return false;
+    });
+    if(blocked)toast('⚠ '+blocked+' precio'+(blocked===1?'':'s')+' con posible error de cantidad no pasa'+(blocked===1?'':'n')+' al historial. Revisa la factura original.');
+    if(!safe.length)return[];
+    options={...options,body:safe};
+  }
   return psPreviousApi(path,options);
 };
 
 function psGroups(){
-  const map=new Map();
-  for(const p of Array.isArray(products)?products:[]){const key=`${psText(p.name)}|${psUnit(p.unit)}`;if(!map.has(key))map.set(key,[]);map.get(key).push(p)}
-  const nameSourceUnits=new Map();
-  for(const p of Array.isArray(products)?products:[]){if(!p?.source_invoice_id)continue;const k=`${psText(p.name)}|${p.source_invoice_id}`;if(!nameSourceUnits.has(k))nameSourceUnits.set(k,new Set());nameSourceUnits.get(k).add(psUnit(p.unit))}
-  return [...map.values()].map(rows=>{
-    rows.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||'')));
-    const latest=rows[0],prev=rows[1]||null,now=Number(latest?.price),before=Number(prev?.price);
-    let pct=null,trend='new';
-    if(prev&&Number.isFinite(now)&&Number.isFinite(before)&&Math.abs(before)>.000001){pct=((now-before)/Math.abs(before))*100;trend=pct>.001?'up':pct<-.001?'down':'same'}else if(prev)trend='same';
-    const mixedUnits=rows.some(p=>p?.source_invoice_id&&(nameSourceUnits.get(`${psText(p.name)}|${p.source_invoice_id}`)?.size||0)>1);
-    const noReliableOrder=!!(prev&&latest?.source_invoice_id&&latest.source_invoice_id===prev?.source_invoice_id&&String(latest.price_date||'')===String(prev.price_date||'')&&Number.isFinite(now)&&Number.isFinite(before)&&Math.abs(now-before)>.000001);
-    return{rows,latest,prev,pct,trend,review:mixedUnits||noReliableOrder};
-  }).sort((a,b)=>String(a.latest?.name||'').localeCompare(String(b.latest?.name||''),'es',{sensitivity:'base'}));
+  // El cuadro de precios y sus avisos usan exactamente los mismos grupos.
+  // Antes estaban ordenados por reglas distintas y las alertas podían
+  // colocarse sobre el producto equivocado.
+  return typeof productGroups==='function'?productGroups():[];
 }
 function psInvoice(id){return (Array.isArray(invoices)?invoices:[]).find(x=>x.id===id)||null}
 function psButton(label,id){const inv=psInvoice(id);if(!inv?.file_path)return'';return `<button type="button" class="secondary product-source-file" data-product-source="${esc(id)}">${label}</button>`}
@@ -48,8 +58,9 @@ function decorateProductCards(){
     card.querySelector('.product-source-actions')?.remove();card.querySelector('.product-review-warning')?.remove();
     if(g.review){
       card.dataset.trend='review';
+      const now=card.querySelector('.price-now');if(now)now.textContent='⚠ Precio sin verificar';
       const t=card.querySelector('.price-trend');if(t){t.textContent='⚠ Revisar';t.className='price-trend trend-new'}
-      const w=document.createElement('div');w.className='product-review-warning';w.textContent='⚠ No uso estos datos como subida/bajada hasta comprobar el documento: hay unidades distintas o dos precios sin un orden de fecha fiable.';card.querySelector('.price-main')?.appendChild(w)
+      const w=document.createElement('div');w.className='product-review-warning';w.textContent='⚠ '+g.reviewReason+' Importe detectado: '+euro(g.latest.price)+'. No lo considero una subida o bajada hasta revisar la factura.';card.querySelector('.price-main')?.appendChild(w)
     }
     const ids=[g.latest?.source_invoice_id,g.prev?.source_invoice_id].filter(Boolean),same=ids.length===2&&ids[0]===ids[1];let html='';
     if(ids[0])html+=psButton(same?'📄 Ver factura (ambos precios)':'📄 Ver factura actual',ids[0]);
