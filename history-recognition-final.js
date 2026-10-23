@@ -8,6 +8,7 @@
     if(t.includes('makro'))return 'makro';
     if(t.includes('transgourmet')||t.includes('gross mercat')||t.includes('gros mercat'))return 'transgourmet';
     if(t.includes('assolim')||t.includes('lassolim')||t.includes('asolim'))return 'assolim';
+    if(/cb98|central (de )?bebidas 98/.test(t))return 'central bebidas 98';
     if(t.includes('maheso'))return 'maheso';
     return t.replace(/\b(s l u|s l|s a u|s a|sl|slu|sa|sau)\b/g,'').replace(/\s+/g,' ').trim();
   };
