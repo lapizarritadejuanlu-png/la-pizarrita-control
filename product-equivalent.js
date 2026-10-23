@@ -31,16 +31,15 @@ function packEquivalent(name,price,unit){
   return{value:p/total,label};
 }
 function groupedProducts(){
-  const map=new Map();
-  for(const p of Array.isArray(products)?products:[]){const key=`${ntext(p.name)}|${ntext(p.unit)}`;if(!map.has(key))map.set(key,[]);map.get(key).push(p)}
-  return [...map.values()].map(rows=>{rows.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));return rows[0]}).sort((a,b)=>String(a?.name||'').localeCompare(String(b?.name||''),'es',{sensitivity:'base'}));
+  // Coincidir con el orden de los grupos que aparecen en Productos.
+  return typeof productGroups==='function'?productGroups():[];
 }
 function decorateEquivalents(){
   if(route!=='products')return;
   const cards=[...document.querySelectorAll('.product-smart-row')],latest=groupedProducts();
   cards.forEach((card,i)=>{
     card.querySelector('.price-equivalent')?.remove();
-    const p=latest[i];if(!p)return;
+    const g=latest[i];if(!g||g.review)return;const p=g.latest;
     const eq=packEquivalent(p.name,p.price,p.unit);if(!eq)return;
     const side=card.querySelector('.price-side');if(!side)return;
     const el=document.createElement('div');el.className='price-equivalent';el.textContent=`≈ ${new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2}).format(eq.value)} / ${eq.label}`;side.appendChild(el);
