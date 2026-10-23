@@ -33,6 +33,9 @@ function dpmMovements(){
     rows.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));
     if(rows.length<2)continue;
     const now=rows[0],prev=rows[1];
+    // No anunciar variaciones sin orden cronológico fiable ni múltiplos
+    // exactos de precio que suelen indicar confusión cantidad/importe.
+    if(now.price_date===prev.price_date||productRatioWarning(now.price,prev.price))continue;
     if(String(now.price_date||'').slice(0,7)!==month)continue;
     const current=Number(now.price),before=Number(prev.price);if(!(before>0&&current>0))continue;
     const pct=((current-before)/before)*100;if(Math.abs(pct)<0.05)continue;
