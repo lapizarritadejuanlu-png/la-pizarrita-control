@@ -5,6 +5,7 @@ function dpmText(value=''){
 function dpmSupplier(value=''){
   const s=dpmText(value);
   if(s.includes('assolim')||s.includes('asolim'))return'assolim foodservices';
+  if(/cb98|central (de )?bebidas 98/.test(s))return'central bebidas 98';
   if(s.includes('maheso'))return'maheso gedesco';
   if(s.includes('transgourmet'))return'transgourmet iberica';
   return s;
