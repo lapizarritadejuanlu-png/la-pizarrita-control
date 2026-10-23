@@ -31,6 +31,7 @@ PEDIDO / SERVIDO / ENTREGADO — REGLA PRIORITARIA:
 - La cantidad facturada debe ser la que realmente se suministra. Puede ser decimal por peso: por ejemplo SERVIDO 5,40 con precio 13,95 debe devolver quantity=5.40, unit_price=13.95 y line_total=75.33.
 - Otro ejemplo: PEDIDO 1,00, SERVIDO 3,20, precio 6,38 y total 20,42 debe devolver quantity=3.20, unit_price=6.38 y line_total=20.42.
 - Antes de devolver una línea con estas columnas verifica expresamente que SERVIDO × PRECIO = TOTAL de la línea, salvo redondeo normal.
+- En facturas de bebidas lee la CANTIDAD de la propia fila y no el número 1 por defecto: si dice cantidad 3, precio unitario 25,15 y total 75,46, devuelve quantity=3, unit_price≈25,153 y line_total=75,46; NUNCA unit_price=75,46. Si la cantidad no se distingue, usa null, no supongas 1. Lo mismo para barriles cantidad 2 a 55,78 y total 111,56.
 
 PACKS, CAJAS Y CONTENIDO DEL EMBALAJE — MUY IMPORTANTE:
 - quantity significa EXCLUSIVAMENTE cuántos packs, cajas, botellas, kilos o unidades COMERCIALES se han comprado en esa línea.
