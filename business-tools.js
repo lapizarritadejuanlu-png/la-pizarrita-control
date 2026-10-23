@@ -20,25 +20,54 @@ function addBusinessStyles(){
 }
 function normText(s=''){return String(s).trim().toLowerCase().replace(/\s+/g,' ')}
 function normInvoiceNumber(s=''){return normText(s).replace(/\s+/g,'')}
+// Una referencia estable no cambia solo por tildes, puntos o códigos de catálogo.
+function normProductKey(s=''){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[×*]/g,'x').replace(/[^a-z0-9]+/g,' ').replace(/^\d{4,7}\s+/,'').replace(/\s+/g,' ').trim()}
+function normProductUnit(s=''){const u=normProductKey(s);const m={u:'unidad',ud:'unidad',uds:'unidad',unidades:'unidad',c:'caja',cj:'caja',cajas:'caja',packs:'pack',k:'kg',kgs:'kg',l:'l',lt:'l',litro:'l',litros:'l',gr:'g',grs:'g',bot:'botella',botellas:'botella',b:'bandeja',bandejas:'bandeja',paquetes:'paquete'};return m[u]||u||'sin especificar'}
+function normProductSupplier(s=''){const k=normProductKey(s).replace(/\b(s l u|s l|s a u|s a|slu|sl|sau|sa)\b/g,'').trim();if(/cb98|central (de )?bebidas 98/.test(k))return'central bebidas 98';if(/assolim|asolim/.test(k))return'assolim';if(/maheso|gedesco/.test(k))return'maheso';if(/transgourmet|gross mercat|gm cash/.test(k))return'transgourmet';return k}
+function productRatioWarning(a,b){
+  const x=Number(a),y=Number(b);if(!(x>0&&y>0))return false;
+  const ratio=Math.max(x,y)/Math.min(x,y),multi=Math.round(ratio);
+  return multi>=2&&multi<=12&&Math.abs(ratio-multi)/multi<=.025;
+}
 function productGroups(){
-  const map=new Map();
+  const names=new Map();
   for(const p of Array.isArray(products)?products:[]){
-    const key=`${normText(p.name)}|${normText(p.unit)}`;
-    if(!map.has(key))map.set(key,[]);
-    map.get(key).push(p);
+    const name=normProductKey(p?.name);if(!name)continue;
+    if(!names.has(name))names.set(name,[]);names.get(name).push(p);
+  }
+  const map=new Map();
+  for(const [name,all] of names){
+    // Solo agrupamos unidades desconocidas con las conocidas si hay una
+    // única unidad compatible. Kg y unidad nunca se mezclan.
+    const known=[...new Set(all.map(p=>normProductUnit(p.unit)).filter(u=>u!=='sin especificar'))];
+    for(const p of all){
+      let unit=normProductUnit(p.unit);
+      if(unit==='sin especificar'&&known.length===1)unit=known[0];
+      const key=name+'|'+unit;
+      if(!map.has(key))map.set(key,[]);map.get(key).push(p);
+    }
   }
   return [...map.entries()].map(([key,rows])=>{
-    rows.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||'')));
-    const latest=rows[0],prev=rows[1]||null;
-    const now=Number(latest?.price||0),before=prev?Number(prev.price||0):null;
+    rows.sort((a,b)=>String(b.price_date||'').localeCompare(String(a.price_date||''))||String(b.created_at||'').localeCompare(String(a.created_at||''))||String(b.id||'').localeCompare(String(a.id||'')));
+    const latest=rows[0],supplier=normProductSupplier(latest?.supplier);
+    // No llamar subida/bajada a dos registros del mismo día ni mezclar
+    // proveedores como si fueran el mismo historial.
+    const prev=rows.slice(1).find(p=>normProductSupplier(p?.supplier)===supplier&&String(p.price_date||'')<String(latest.price_date||''))||null;
+    const now=Number(latest?.price),before=Number(prev?.price);
     let pct=null,trend='new';
-    if(prev&&before!==0){pct=((now-before)/Math.abs(before))*100;trend=pct>0.001?'up':pct<-.001?'down':'same'}
+    if(prev&&before>0&&now>0){pct=((now-before)/before)*100;trend=pct>.5?'up':pct<-.5?'down':'same'}
     else if(prev)trend='same';
-    return{key,rows,latest,prev,pct,trend};
+    const units=[...new Set(rows.map(p=>normProductUnit(p.unit)))];
+    const unknownMixed=units.includes('sin especificar')&&units.length>1;
+    const sameDayConflict=rows.some(p=>p!==latest&&normProductSupplier(p.supplier)===supplier&&p.price_date===latest.price_date&&Number(p.price)>0&&Math.abs(Number(p.price)-now)/Math.max(now,Number(p.price))>.10);
+    const multiple=rows.some(p=>p!==latest&&normProductSupplier(p.supplier)===supplier&&productRatioWarning(p.price,latest.price));
+    const review=unknownMixed||sameDayConflict||multiple;
+    const reviewReason=multiple?'Posible confusión entre cantidad, importe de línea y precio unitario.':sameDayConflict?'Dos compras del mismo día muestran precios incompatibles.':'La unidad figura de manera diferente entre facturas; hay que confirmar el formato.';
+    return{key,rows,latest,prev,pct,trend,review,reviewReason};
   }).sort((a,b)=>String(a.latest?.name||'').localeCompare(String(b.latest?.name||''),'es',{sensitivity:'base'}));
 }
 function trendLabel(g){
-  if(g.trend==='new')return 'Primera referencia';
+  if(g.trend==='new')return g.rows.length>1?'Sin compra anterior comparable':'Primera compra registrada';
   if(g.trend==='same')return '= Sin cambio';
   const n=Math.abs(g.pct||0).toLocaleString('es-ES',{minimumFractionDigits:1,maximumFractionDigits:1});
   return g.trend==='up'?`▲ +${n}%`:`▼ -${n}%`;
@@ -48,7 +77,7 @@ function businessProductsView(){
   const cards=groups.map(g=>{
     const p=g.latest,prev=g.prev;
     const search=`${p?.name||''} ${p?.supplier||''} ${prev?.supplier||''}`.toLowerCase();
-    const prevText=prev?`Antes: ${euro(prev.price)} / ${esc(prev.unit||p.unit||'unidad')} · ${esc(prev.supplier||'')} · ${fmtDate(prev.price_date)}`:'Todavía no hay un precio anterior para comparar.';
+    const prevText=prev?`Antes: ${euro(prev.price)} / ${esc(prev.unit||p.unit||'unidad')} · ${esc(prev.supplier||'')} · ${fmtDate(prev.price_date)}`:(g.rows.length>1?'Hay otros registros de este producto, pero no una compra anterior comparable.':'Todavía no hay un precio anterior para comparar.');
     const source=p?.source_invoice_id?' · 📄 factura':'';
     return `<div class="price-card product-smart-row" data-search="${esc(search)}" data-trend="${g.trend}"><div class="price-main"><div class="price-name">${esc(p?.name||'Sin nombre')}</div><div class="price-meta">${esc(p?.supplier||'Sin proveedor')} · ${fmtDate(p?.price_date)} · ${g.rows.length} registro${g.rows.length===1?'':'s'}${source}</div><div class="price-prev">${prevText}</div></div><div class="price-side"><div class="price-now">${euro(p?.price)} / ${esc(p?.unit||'unidad')}</div><div class="price-trend trend-${g.trend}">${trendLabel(g)}</div></div></div>`;
   }).join('');
