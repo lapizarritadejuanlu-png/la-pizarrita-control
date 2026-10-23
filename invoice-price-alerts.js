@@ -51,7 +51,7 @@ function previousFor(line){
   const candidates=(Array.isArray(products)?products:[]).map(p=>{
     if(!p||p.source_invoice_id===editingInvoiceId)return null;
     const price=Number(p.price);if(!Number.isFinite(price)||price<=0)return null;
-    const sameSupplier=!supplier||paText(p.supplier||'')===supplier;
+    const sameSupplier=!supplier||(typeof normProductSupplier==='function'?normProductSupplier(p.supplier||'')===normProductSupplier(supplier):paText(p.supplier||'')===supplier);
     if(!sameSupplier)return null;
     const exact=paText(line.name)===paText(p.name||'');
     const score=paSimilarity(line.name,p.name||'');
