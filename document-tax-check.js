@@ -20,7 +20,7 @@ function dtcDecorateRows(){
 }
 function dtcRenderForm(){
   document.getElementById('formTaxWarning')?.remove();const issue=dtcFormIssue();if(!issue)return;
-  const hint=document.getElementById('aiHint')||document.getElementById('invTotal')?.closest('.field');if(!hint)return;const box=document.createElement('div');box.id='formTaxWarning';box.className='form-tax-warning';box.innerHTML=`⚠ Comprueba el total: base ${euro(issue.base)} + IVA ${euro(issue.vat)} = ${euro(issue.base+issue.vat)}, pero el total es ${euro(issue.total)}. Diferencia ${euro(issue.diff)}. Puedes guardar si la factura incluye otros conceptos o ajustes.`;hint.insertAdjacentElement('afterend',box);
+  const hint=document.getElementById('aiHint')||document.getElementById('invTotal')?.closest('.field');if(!hint)return;const box=document.createElement('div');box.id='formTaxWarning';box.className='form-tax-warning';box.innerHTML=`⚠ No he podido cuadrar esta factura. El total impreso es ${euro(issue.total)}, pero los importes detectados suman ${euro(issue.base+issue.vat)}. Faltan ${euro(issue.diff)} por identificar. No la guardes como correcta hasta revisar los impuestos u otros conceptos.`;hint.insertAdjacentElement('afterend',box);
 }
 function dtcBindInputs(){['invBase','invVat','invTotal','invDocType'].forEach(id=>document.getElementById(id)?.addEventListener('input',dtcRenderForm));document.getElementById('invDocType')?.addEventListener('change',dtcRenderForm)}
 const dtcPreviousBind=bind;
